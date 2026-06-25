@@ -27,11 +27,6 @@
     .p-chip{background:#16213e;border:2px solid #e94560;border-radius:30px;padding:9px 20px;font-size:0.95rem;animation:pop .3s ease}
     @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
 
-    /* AGUARDANDO CÓDIGO */
-    #s-waiting{text-align:center}
-    #s-waiting h2{font-size:2rem;color:#f5a623;margin-bottom:12px}
-    #s-waiting p{color:#aaa;margin-bottom:24px}
-
     /* PERGUNTA */
     #q-bar-wrap{background:#16213e;border-radius:50px;height:10px;margin-bottom:18px;overflow:hidden}
     #q-bar{height:100%;background:linear-gradient(90deg,#e94560,#f5a623);border-radius:50px;transition:width .4s}
@@ -73,7 +68,7 @@
     .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.65rem;font-weight:900;border-radius:30px;padding:1px 5px;white-space:nowrap;opacity:0;transition:opacity .4s}
     .horse-wrap .pos-badge.show{opacity:1}
 
-    /* PÓDIO */
+    /* PÓDIO FINAL */
     #s-final{text-align:center}
     #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:10px}
     .podium-stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:24px auto 30px;max-width:700px}
@@ -135,7 +130,7 @@
   <div class="btn-row">
     <button class="btn green" onclick="generateCode()">🔑 Gerar Código / Nova Sala</button>
     <button class="btn" onclick="startGame()" id="btn-start" disabled>🚀 Iniciar Quiz</button>
-    <button class="btn ghost" onclick="location.href=\'/editor.html\'">✏️ Editar Perguntas</button>
+    <button class="btn ghost" onclick="location.href='/editor.html'">✏️ Editar Perguntas</button>
     <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
   </div>
 </div>
@@ -285,31 +280,45 @@
     answeredCount  = 0;
     currentOptions = d.options;
     currentCorrect = d.correct;
-    document.getElementById('q-num').textContent  = `${d.index+1}/${d.total}`;
-    document.getElementById('q-bar').style.width  = `${(d.index/d.total)*100}%`;
+
+    document.getElementById('q-num').textContent  = `${d.index + 1}/${d.total}`;
+
+    // ✅ FIX 1: barra de progresso chega a 100% na última pergunta
+    document.getElementById('q-bar').style.width = `${((d.index + 1) / d.total) * 100}%`;
+
     document.getElementById('q-text').textContent = d.question;
     document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
-    document.querySelectorAll('.opt').forEach((o,i) => {
+
+    document.querySelectorAll('.opt').forEach((o, i) => {
       o.className = 'opt';
       const txt = d.options[i] || '';
       document.getElementById(`o${i}`).textContent = txt;
-      o.style.opacity = txt ? '1' : '0';
+
+      // ✅ FIX 2: esconde opções vazias (perguntas V/F têm só 2 opções)
+      o.style.display = txt ? 'flex' : 'none';
     });
+
     updateTimer(d.timeLimit);
   }
 
   function updateTimer(t) {
     const el = document.getElementById('q-timer');
     el.textContent = t;
-    el.className   = t <= 5 ? 'urgent' : '';
+    // ✅ FIX 3: não apaga a classe base do elemento, só alterna "urgent"
+    if (t <= 5) {
+      el.classList.add('urgent');
+    } else {
+      el.classList.remove('urgent');
+    }
   }
 
   // ══ CORRIDA ══
   const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇'];
 
   function showReveal(data) {
-    document.querySelectorAll('.opt').forEach((o,i) => {
-      if (!currentOptions[i]) return;
+    document.querySelectorAll('.opt').forEach((o, i) => {
+      // ✅ FIX 4: só aplica classe em opções visíveis
+      if (o.style.display === 'none') return;
       o.classList.add(i === data.correct ? 'correct' : 'wrong');
     });
     setTimeout(() => {
@@ -381,8 +390,8 @@
   }
 
   function updatePositionBadges(ranking) {
-    const sorted = [...ranking].sort((a,b) => b.score - a.score);
-    ranking.forEach((p,i) => {
+    const sorted = [...ranking].sort((a, b) => b.score - a.score);
+    ranking.forEach((p, i) => {
       const pos   = sorted.findIndex(s => s.name === p.name) + 1;
       const badge = document.getElementById(`pos-${i}`);
       if (badge) {
@@ -404,7 +413,7 @@
     const medals  = ['🥈','🥇','🥉'];
     const heights = ['110px','165px','80px'];
 
-    podiumOrder.forEach((p,vi) => {
+    podiumOrder.forEach((p, vi) => {
       const block = document.createElement('div');
       block.className = 'podium-block';
       block.innerHTML = `
@@ -415,7 +424,7 @@
       stage.appendChild(block);
     });
 
-    ranking.slice(3).forEach((p,i) => {
+    ranking.slice(3).forEach((p, i) => {
       const row = document.createElement('div');
       row.className = 'rank-row';
       row.innerHTML = `<div class="rank-pos">${i+4}º</div><div class="rank-name">${p.name}</div><div class="rank-pts">⭐ ${p.score} pts</div>`;
@@ -423,13 +432,13 @@
     });
 
     const blocks = stage.querySelectorAll('.podium-block');
-    [2,0,1].forEach((bi,ti) => {
+    [2,0,1].forEach((bi, ti) => {
       setTimeout(() => {
-        if(blocks[bi]) blocks[bi].classList.add('show');
-        if(bi===1) startConfetti();
-      }, 400 + ti*700);
+        if (blocks[bi]) blocks[bi].classList.add('show');
+        if (bi === 1) startConfetti();
+      }, 400 + ti * 700);
     });
-    rest.querySelectorAll('.rank-row').forEach((r,i) => {
+    rest.querySelectorAll('.rank-row').forEach((r, i) => {
       setTimeout(() => r.classList.add('show'), 400 + 3*700 + i*200);
     });
   }
