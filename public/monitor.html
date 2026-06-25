@@ -47,7 +47,7 @@
     .opt.correct{box-shadow:0 0 28px #2ecc71;border:3px solid #2ecc71;transform:scale(1.02)}
     .opt.wrong{opacity:.22}
 
-    /* CORRIDA — otimizada para até 40 jogadores */
+    /* CORRIDA */
     #s-race{text-align:center}
     #s-race h2{font-size:2rem;color:#f5a623;margin-bottom:4px}
     .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:12px}
@@ -85,7 +85,7 @@
     .race-lane{
       display:flex;align-items:center;gap:8px;
       margin-bottom:6px;position:relative;
-      height:38px; /* menor para caber mais jogadores */
+      height:38px;
     }
     .race-lane:last-child{margin-bottom:0}
 
@@ -110,12 +110,19 @@
       z-index:4;display:flex;align-items:center;gap:2px
     }
     .horse-wrap .horse{
-      font-size:1.45rem; /* menor para caber raias compactas */
+      font-size:1.45rem;
       line-height:1;
       filter:drop-shadow(0 0 5px rgba(245,166,35,.7));
       transform:scaleX(-1);
       display:inline-block;
     }
+
+    /* ✅ Cavalo parado fica acinzentado */
+    .horse-wrap.parado .horse{
+      filter:drop-shadow(0 0 3px rgba(150,150,150,.4));
+      opacity:0.45;
+    }
+
     .horse-wrap .pos-badge{
       background:#f5a623;color:#1a1a2e;font-size:.6rem;
       font-weight:900;border-radius:30px;padding:1px 4px;
@@ -137,7 +144,6 @@
     .podium-block:nth-child(2) .podium-pillar{height:165px;background:linear-gradient(180deg,#f5d020,#e6a817)}
     .podium-block:nth-child(3) .podium-pillar{height:80px;background:linear-gradient(180deg,#cd7f32,#9a5e25)}
 
-    /* Ranking final em 2 colunas para muitos jogadores */
     .podium-rest{max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}
     @media(max-width:600px){.podium-rest{grid-template-columns:1fr}}
 
@@ -264,7 +270,9 @@
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
 
-  // 40 emojis de cavalos/animais variados
+  // ✅ Guarda posição atual de cada cavalo entre rodadas { "NomeJogador": porcentagem }
+  const horsePositions = {};
+
   const HORSES = [
     '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄',
     '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄',
@@ -304,6 +312,8 @@
       document.getElementById('code-display').textContent = '——';
       document.getElementById('btn-start').disabled = true;
       renderPlayers([]);
+      // ✅ Limpa posições ao resetar
+      Object.keys(horsePositions).forEach(k => delete horsePositions[k]);
     }
     if (data.type === 'error') toast(data.msg);
   }
@@ -334,6 +344,8 @@
     renderPlayers([]);
     show('s-lobby');
     stopConfetti();
+    // ✅ Limpa posições ao gerar nova partida
+    Object.keys(horsePositions).forEach(k => delete horsePositions[k]);
     toast(`✅ Código gerado: ${data.gameCode}`);
   }
 
@@ -369,7 +381,7 @@
     el.classList.toggle('urgent', t <= 5);
   }
 
-  // ══ CORRIDA ══
+  // ══ REVELAR ══
   function showReveal(data) {
     document.querySelectorAll('.opt').forEach((o, i) => {
       if (o.style.display === 'none') return;
@@ -382,29 +394,35 @@
       document.getElementById('btn-next-race').style.display = 'none';
       document.getElementById('btn-next-race').textContent =
         data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
-      buildRace(data.ranking || []);
+
+      // ✅ Passa roundEarned vindo do server para buildRace
+      buildRace(data.ranking || [], data.roundEarned || {});
     }, 1600);
   }
 
-  function buildRace(ranking) {
+  // ══ CORRIDA ══
+  function buildRace(ranking, roundEarned) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
     if (!ranking.length) return;
 
     const DURATION = 3200;
-    const MIN_PCT  = 2;
-    const MAX_PCT  = 88;
+    const MIN_PCT  = 2;   // início da pista
+    const MAX_PCT  = 88;  // linha de chegada
 
-    const sorted = [...ranking].sort((a, b) => b.score - a.score);
-    const total  = sorted.length;
+    // Score máximo para calcular posição proporcional
+    const maxScore = Math.max(...ranking.map(p => p.score), 1);
 
     ranking.forEach((p, i) => {
+      // ✅ Posição salva da rodada anterior (ou início se for a 1ª)
+      const savedPos = horsePositions[p.name] ?? MIN_PCT;
+
       const lane = document.createElement('div');
       lane.className = 'race-lane';
       lane.innerHTML = `
-        <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">0</span> pts</small></div>
+        <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">${p.score}</span> pts</small></div>
         <div class="lane-road">
-          <div class="horse-wrap" id="hw-${i}" style="left:${MIN_PCT}%">
+          <div class="horse-wrap" id="hw-${i}" style="left:${savedPos}%">
             <span class="horse">${HORSES[i % HORSES.length]}</span>
             <span class="pos-badge" id="pos-${i}"></span>
           </div>
@@ -412,29 +430,40 @@
       container.appendChild(lane);
     });
 
-    // Scrolla para o topo da pista antes de animar
-    const racetrack = document.querySelector('.racetrack');
-    racetrack.scrollTop = 0;
+    // Scroll pro topo
+    document.querySelector('.racetrack').scrollTop = 0;
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ranking.forEach((p, i) => {
-        const pos      = sorted.findIndex(s => s.name === p.name) + 1;
-        const posRatio = 1 - ((pos - 1) / Math.max(total - 1, 1));
-        const targetPct = MIN_PCT + Math.round(
-          posRatio * (MAX_PCT - MIN_PCT) * 0.45 +
-          (MAX_PCT - MIN_PCT) * 0.1
-        );
-
         const hw      = document.getElementById(`hw-${i}`);
-        const scoreEl = document.getElementById(`score-count-${i}`);
-        const delay   = i * 80; // delay menor para não demorar demais com 40 jogadores
+        const earned  = roundEarned?.[p.name] ?? 0;
 
-        setTimeout(() => {
-          hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
-          hw.style.left       = `${targetPct}%`;
-        }, delay);
+        if (earned > 0) {
+          // ✅ Acertou: avança proporcional ao score total acumulado
+          const targetPct = MIN_PCT + Math.round(
+            (p.score / maxScore) * (MAX_PCT - MIN_PCT) * 0.92
+          );
 
-        setTimeout(() => animateCount(scoreEl, 0, p.score, DURATION), delay);
+          // Nunca volta para trás
+          const finalPct = Math.max(horsePositions[p.name] ?? MIN_PCT, targetPct);
+
+          // Remove classe parado (se tinha)
+          hw.classList.remove('parado');
+
+          setTimeout(() => {
+            hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
+            hw.style.left       = `${finalPct}%`;
+          }, i * 80);
+
+          // ✅ Salva nova posição
+          horsePositions[p.name] = finalPct;
+
+        } else {
+          // ✅ Errou ou não respondeu: cavalo FICA PARADO
+          hw.style.transition = 'none';
+          hw.style.left       = `${horsePositions[p.name] ?? MIN_PCT}%`;
+          hw.classList.add('parado'); // fica acinzentado
+        }
       });
 
       const totalDelay = DURATION + ranking.length * 80 + 500;
@@ -443,19 +472,6 @@
         document.getElementById('btn-next-race').style.display = 'inline-block';
       }, totalDelay);
     }));
-  }
-
-  function animateCount(el, from, to, duration) {
-    if (!el) return;
-    const start = performance.now();
-    const range = to - from;
-    function step(now) {
-      const progress = Math.min((now - start) / duration, 1);
-      const eased    = 1 - Math.pow(1 - progress, 3);
-      el.textContent = Math.round(from + range * eased);
-      if (progress < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
   }
 
   function updatePositionBadges(ranking) {
@@ -493,7 +509,6 @@
       stage.appendChild(block);
     });
 
-    // Do 4º em diante — em 2 colunas
     ranking.slice(3).forEach((p, i) => {
       const row = document.createElement('div');
       row.className = 'rank-row';
