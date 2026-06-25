@@ -52,7 +52,6 @@
     .opt-wrap:nth-child(2) .correct-radio{accent-color:#1a6fbf}
     .opt-wrap:nth-child(3) .correct-radio{accent-color:#f5a623}
     .opt-wrap:nth-child(4) .correct-radio{accent-color:#27ae60}
-    .opt-wrap:nth-child(1) input[type=text]{--c:#e94560}
     .opt-correct-0{border-color:#e94560!important;background:#200a10!important}
     .opt-correct-1{border-color:#1a6fbf!important;background:#0a1020!important}
     .opt-correct-2{border-color:#f5a623!important;background:#1a1000!important}
@@ -105,8 +104,7 @@
     // Garante 4 opções
     while (q.options.length < 4) q.options.push('');
 
-    const optColors = ['#e94560','#1a6fbf','#f5a623','#27ae60'];
-    const optIcons  = ['▲','◆','●','■'];
+    const optIcons = ['▲','◆','●','■'];
 
     card.innerHTML = `
       <div class="q-card-header">
@@ -114,7 +112,7 @@
         <div class="q-num-badge">${i + 1}</div>
         <div style="flex:1">
           <label>Pergunta</label>
-          <textarea rows="2" id="q-text-${i}">${escHtml(q.q)}</textarea>
+          <textarea rows="2" id="q-text-${i}">${escHtml(q.question)}</textarea>
         </div>
         <button class="del-btn" onclick="deleteQ(${i})" title="Excluir">🗑️</button>
       </div>
@@ -170,7 +168,6 @@
     // Atualiza labels
     const card = document.querySelector(`[data-idx="${qi}"]`);
     card.querySelectorAll('.opt-wrap label').forEach((lbl, idx) => {
-      // Remove tag correta antiga
       const tag = lbl.querySelector('span');
       if (tag) tag.remove();
       if (idx === oi) {
@@ -183,9 +180,9 @@
   }
 
   function addQuestion() {
-    questions.push({ q: '', options: ['', '', '', ''], correct: 0 });
+    // ✅ CORRIGIDO: chave "question" em vez de "q"
+    questions.push({ question: '', options: ['', '', '', ''], correct: 0 });
     renderAll();
-    // Scrolla para o fim
     setTimeout(() => {
       const cards = document.querySelectorAll('.q-card');
       cards[cards.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -203,7 +200,8 @@
     document.querySelectorAll('.q-card').forEach((card, i) => {
       const qi = +card.dataset.idx;
       const txt = document.getElementById(`q-text-${qi}`);
-      if (txt) questions[qi].q = txt.value.trim();
+      // ✅ CORRIGIDO: chave "question" em vez de "q"
+      if (txt) questions[qi].question = txt.value.trim();
       for (let oi = 0; oi < 4; oi++) {
         const inp = document.getElementById(`opt-${qi}-${oi}`);
         if (inp) questions[qi].options[oi] = inp.value.trim();
@@ -213,13 +211,15 @@
     // Valida
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (!q.q) { showStatus(`Pergunta ${i+1} está sem texto!`, true); return; }
+      // ✅ CORRIGIDO: valida "question" em vez de "q"
+      if (!q.question) { showStatus(`Pergunta ${i+1} está sem texto!`, true); return; }
       const filled = q.options.filter(o => o.trim());
       if (filled.length < 2) { showStatus(`Pergunta ${i+1} precisa de ao menos 2 opções!`, true); return; }
     }
 
     try {
-      const res = await fetch('/api/questions', {
+      // ✅ CORRIGIDO: rota correta "/api/questions/save"
+      const res = await fetch('/api/questions/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(questions)
@@ -234,8 +234,8 @@
 
   function showStatus(msg, isErr = false) {
     const bar = document.getElementById('status-bar');
-    bar.textContent  = msg;
-    bar.className    = isErr ? 'err' : '';
+    bar.textContent   = msg;
+    bar.className     = isErr ? 'err' : '';
     bar.style.display = 'block';
     setTimeout(() => bar.style.display = 'none', 3500);
   }
