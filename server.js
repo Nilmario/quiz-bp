@@ -1,252 +1,264 @@
-const express = require('express');
-const http = require('http');
-const { WebSocketServer } = require('ws');
-const path = require('path');
-const fs = require('fs');
+const express   = require('express');
+const http      = require('http');
+const WebSocket = require('ws');
+const fs        = require('fs');
+const path      = require('path');
+const crypto    = require('crypto');
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss    = new WebSocket.Server({ server });
 
-app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
-// ── Carrega perguntas do questions.json (ou usa o padrão embutido) ──
-const QUESTIONS_PATH = path.join(__dirname, 'questions.json');
-
+// ── Perguntas ──────────────────────────────────────────
+const QF = path.join(__dirname, 'questions.json');
 function loadQuestions() {
-  try {
-    if (fs.existsSync(QUESTIONS_PATH)) {
-      return JSON.parse(fs.readFileSync(QUESTIONS_PATH, 'utf8'));
-    }
-  } catch (e) { console.error('Erro ao carregar questions.json:', e); }
-  return DEFAULT_QUESTIONS;
+  if (!fs.existsSync(QF)) {
+    const demo = [
+      { question:'Qual a capital do Brasil?', options:['Salvador','Brasília','São Paulo','Rio de Janeiro'], correct:1 },
+      { question:'Quanto é 7 × 8?',           options:['54','56','58','64'],                               correct:1 }
+    ];
+    fs.writeFileSync(QF, JSON.stringify(demo, null, 2));
+  }
+  return JSON.parse(fs.readFileSync(QF));
 }
 
-function saveQuestions(list) {
-  fs.writeFileSync(QUESTIONS_PATH, JSON.stringify(list, null, 2), 'utf8');
-}
-
-// ── API REST para editar perguntas ──
-app.get('/api/questions', (_, res) => res.json(loadQuestions()));
-
-app.post('/api/questions', (req, res) => {
-  const list = req.body;
-  if (!Array.isArray(list)) return res.status(400).json({ error: 'Formato inválido' });
-  saveQuestions(list);
+app.get('/api/questions',      (_,res) => res.json(loadQuestions()));
+app.post('/api/questions/save',(req,res) => {
+  fs.writeFileSync(QF, JSON.stringify(req.body, null, 2));
   res.json({ ok: true });
 });
 
-// ── Estado do jogo ──
-let state = {
-  screen: 'lobby',
-  currentQ: 0,
-  timeLeft: 20,
-  players: {}
-};
+// ── Estado do jogo ─────────────────────────────────────
+let gameCode    = null;   // código ativo
+let gameStarted = false;
+let players     = {};     // id → { ws, name, score, answered }
+let monitor     = null;
+let questions   = [];
+let qIndex      = 0;
+let timer       = null;
+let timeLeft    = 0;
+let revealDone  = false;
 
-let timerInterval = null;
-let monitor = null;
-
-function broadcast(data, exclude = null) {
-  const msg = JSON.stringify(data);
-  wss.clients.forEach(c => {
-    if (c !== exclude && c.readyState === 1) c.send(msg);
-  });
+function generateCode() {
+  return crypto.randomBytes(3).toString('hex').toUpperCase(); // ex: "A3F9C2"
 }
 
-function sendTo(ws, data) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
+function broadcast(obj) {
+  const msg = JSON.stringify(obj);
+  wss.clients.forEach(c => { if (c.readyState === 1) c.send(msg); });
 }
 
-function startTimer(duration, onTick, onEnd) {
-  clearInterval(timerInterval);
-  state.timeLeft = duration;
-  onTick(state.timeLeft);
-  timerInterval = setInterval(() => {
-    state.timeLeft--;
-    onTick(state.timeLeft);
-    if (state.timeLeft <= 0) { clearInterval(timerInterval); onEnd(); }
+function sendMonitor(obj) {
+  if (monitor && monitor.readyState === 1) monitor.send(JSON.stringify(obj));
+}
+
+function sendTo(ws, obj) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj));
+}
+
+function playerList() {
+  return Object.values(players).map(p => ({ name: p.name, score: p.score }));
+}
+
+function ranking() {
+  return playerList().sort((a, b) => b.score - a.score);
+}
+
+function stopTimer() {
+  if (timer) { clearInterval(timer); timer = null; }
+}
+
+function startTimer(limit) {
+  stopTimer();
+  timeLeft   = limit;
+  revealDone = false;
+  sendMonitor({ type:'tick', timeLeft });
+
+  timer = setInterval(() => {
+    timeLeft--;
+    sendMonitor({ type:'tick', timeLeft });
+    if (timeLeft <= 0) revealAnswer();
   }, 1000);
 }
 
-function getPlayerList() {
-  return Object.entries(state.players).map(([name, d]) => ({ name, score: d.score, streak: d.streak }));
+function revealAnswer() {
+  if (revealDone) return;
+  revealDone = true;
+  stopTimer();
+
+  const q    = questions[qIndex];
+  const isLast = qIndex >= questions.length - 1;
+  const data = {
+    type       : 'reveal',
+    correct    : q.correct,
+    correctText: q.options[q.correct],
+    ranking    : ranking(),
+    isLast
+  };
+  sendMonitor(data);
+
+  // Notifica cada jogador se acertou
+  Object.values(players).forEach(p => {
+    sendTo(p.ws, {
+      type    : 'reveal',
+      correct : q.correct,
+      hit     : p.lastAnswer === q.correct,
+      score   : p.score
+    });
+  });
 }
 
-function getRanking() {
-  return getPlayerList().sort((a, b) => b.score - a.score);
-}
+// ── WebSocket ──────────────────────────────────────────
+wss.on('connection', ws => {
+  let playerId = null;
 
-wss.on('connection', (ws) => {
-  ws.on('message', (raw) => {
+  ws.on('message', raw => {
     let data;
     try { data = JSON.parse(raw); } catch { return; }
 
+    // ── Monitor conecta ──
     if (data.type === 'monitor_connect') {
       monitor = ws;
-      ws.role = 'monitor';
-      sendTo(ws, { type: 'state', players: getPlayerList() });
+      sendTo(ws, { type:'state', players: playerList(), gameCode });
+      return;
     }
 
+    // ── Jogador valida código ──
+    if (data.type === 'validate_code') {
+      if (!gameCode || data.code?.toUpperCase() !== gameCode) {
+        sendTo(ws, { type:'code_invalid' });
+      } else {
+        sendTo(ws, { type:'code_ok' });
+      }
+      return;
+    }
+
+    // ── Jogador entra ──
     if (data.type === 'join') {
-      const name = data.name?.trim().slice(0, 20);
-      if (!name) return;
-      ws.role = 'player';
-      ws.playerName = name;
-      if (!state.players[name]) {
-        state.players[name] = { score: 0, streak: 0, ws };
-      } else {
-        state.players[name].ws = ws;
+      if (!gameCode || data.code?.toUpperCase() !== gameCode) {
+        sendTo(ws, { type:'error', msg:'Código inválido ou partida não iniciada.' });
+        return;
       }
-      sendTo(ws, { type: 'joined', name, screen: state.screen });
-      sendTo(monitor, { type: 'player_joined', players: getPlayerList() });
+      if (gameStarted) {
+        sendTo(ws, { type:'error', msg:'A partida já começou!' });
+        return;
+      }
+      const name = (data.name || '').trim().slice(0, 24);
+      if (!name) { sendTo(ws, { type:'error', msg:'Nome inválido.' }); return; }
+      const dup = Object.values(players).find(p => p.name.toLowerCase() === name.toLowerCase());
+      if (dup) { sendTo(ws, { type:'error', msg:'Nome já em uso.' }); return; }
+
+      playerId = crypto.randomUUID();
+      players[playerId] = { ws, name, score:0, answered:false, lastAnswer:null };
+      sendTo(ws, { type:'joined', name });
+      sendMonitor({ type:'player_joined', players: playerList() });
+      return;
     }
 
-    if (data.type === 'start_game' && ws.role === 'monitor') {
-      Object.values(state.players).forEach(p => { p.score = 0; p.streak = 0; });
-      state.currentQ = 0;
+    // ── Iniciar jogo ──
+    if (data.type === 'start_game') {
+      if (!Object.keys(players).length) {
+        sendTo(ws, { type:'error', msg:'Nenhum jogador na sala!' }); return;
+      }
+      questions   = loadQuestions();
+      qIndex      = 0;
+      gameStarted = true;
       sendQuestion();
+      return;
     }
 
-    if (data.type === 'next_question' && ws.role === 'monitor') {
-      state.currentQ++;
-      const QUESTIONS = loadQuestions();
-      if (state.currentQ >= QUESTIONS.length) endGame();
-      else sendQuestion();
-    }
-
-    if (data.type === 'answer' && ws.role === 'player') {
-      const player = state.players[ws.playerName];
-      if (!player || player.answered) return;
-      player.answered = true;
-      const QUESTIONS = loadQuestions();
-      const q = QUESTIONS[state.currentQ];
-      const isCorrect = data.answer === q.correct;
-      const timeBonus = Math.round(800 * (state.timeLeft / 20));
-      let pts = 0;
-      if (isCorrect) {
-        player.streak = (player.streak || 0) + 1;
-        const streakBonus = player.streak >= 3 ? 150 : 0;
-        pts = 200 + timeBonus + streakBonus;
-        player.score += pts;
-      } else {
-        player.streak = 0;
+    // ── Resposta do jogador ──
+    if (data.type === 'answer') {
+      const p = playerId && players[playerId];
+      if (!p || p.answered || revealDone) return;
+      p.answered    = true;
+      p.lastAnswer  = data.option;
+      const q       = questions[qIndex];
+      if (data.option === q.correct) {
+        p.score += Math.max(100, Math.round((timeLeft / q.timeLimit || 1) * 1000));
       }
-      sendTo(ws, { type: 'answer_result', correct: isCorrect, points: pts, score: player.score });
-      const answeredCount = Object.values(state.players).filter(p => p.answered).length;
-      sendTo(monitor, { type: 'answer_update', answeredCount, totalPlayers: Object.keys(state.players).length });
+      const answeredCount = Object.values(players).filter(x => x.answered).length;
+      sendMonitor({ type:'answer_update', answeredCount, totalPlayers: Object.keys(players).length });
+      if (answeredCount === Object.keys(players).length) revealAnswer();
+      return;
     }
 
-    if (data.type === 'reveal_answer' && ws.role === 'monitor') {
-      clearInterval(timerInterval);
-      revealAnswer();
+    // ── Revelar forçado ──
+    if (data.type === 'reveal_answer') { revealAnswer(); return; }
+
+    // ── Próxima pergunta ──
+    if (data.type === 'next_question') {
+      qIndex++;
+      if (qIndex >= questions.length) {
+        sendMonitor({ type:'final', ranking: ranking() });
+        broadcast({ type:'game_over', ranking: ranking() });
+      } else {
+        sendQuestion();
+      }
+      return;
     }
 
-    if (data.type === 'reset_game' && ws.role === 'monitor') {
-      clearInterval(timerInterval);
-      state = { screen: 'lobby', currentQ: 0, timeLeft: 20, players: state.players };
-      Object.values(state.players).forEach(p => { p.score = 0; p.streak = 0; p.answered = false; });
-      broadcast({ type: 'reset' });
+    // ── Reset ──
+    if (data.type === 'reset_game') {
+      resetAll();
+      return;
     }
   });
 
   ws.on('close', () => {
-    if (ws.role === 'monitor') { monitor = null; console.log('Monitor desconectado'); }
-    if (ws.role === 'player')  console.log(`Jogador desconectado: ${ws.playerName}`);
+    if (playerId && players[playerId]) {
+      delete players[playerId];
+      sendMonitor({ type:'player_joined', players: playerList() });
+    }
   });
 });
 
 function sendQuestion() {
-  state.screen = 'question';
-  const QUESTIONS = loadQuestions();
-  const q = QUESTIONS[state.currentQ];
-  Object.values(state.players).forEach(p => { p.answered = false; });
+  const q = questions[qIndex];
+  Object.values(players).forEach(p => { p.answered = false; p.lastAnswer = null; });
+  const timeLimit = q.timeLimit || 20;
+  sendMonitor({
+    type: 'question', question: q.question, options: q.options,
+    correct: q.correct, index: qIndex, total: questions.length, timeLimit
+  });
+  broadcast({
+    type: 'question', options: q.options.map((_, i) => i),
+    index: qIndex, total: questions.length, timeLimit
+  });
+  startTimer(timeLimit);
+}
 
-  sendTo(monitor, {
-    type: 'question',
-    index: state.currentQ,
-    total: QUESTIONS.length,
-    question: q.q,
-    options: q.options,
-    correct: q.correct,
-    timeLimit: 20
+function resetAll() {
+  stopTimer();
+
+  // Desconecta todos os jogadores
+  Object.values(players).forEach(p => {
+    sendTo(p.ws, { type:'kicked', msg:'A sala foi reiniciada.' });
+    p.ws.close();
   });
 
-  Object.values(state.players).forEach(p => {
-    sendTo(p.ws, {
-      type: 'question',
-      index: state.currentQ,
-      total: QUESTIONS.length,
-      options: q.options,
-      timeLimit: 20
-    });
-  });
+  players     = {};
+  gameStarted = false;
+  gameCode    = null;
+  qIndex      = 0;
+  revealDone  = false;
+  timeLeft    = 0;
 
-  startTimer(20,
-    (t) => sendTo(monitor, { type: 'tick', timeLeft: t }),
-    () => revealAnswer()
-  );
+  sendMonitor({ type:'reset' });
 }
 
-function revealAnswer() {
-  state.screen = 'reveal';
-  const QUESTIONS = loadQuestions();
-  const q = QUESTIONS[state.currentQ];
-  const isLast = state.currentQ >= QUESTIONS.length - 1;
-  broadcast({ type: 'reveal', correct: q.correct, correctText: q.options[q.correct], ranking: getRanking(), isLast });
-}
-
-function endGame() {
-  state.screen = 'final';
-  clearInterval(timerInterval);
-  broadcast({ type: 'final', ranking: getRanking() });
-}
-
-// ── Perguntas padrão (usadas se questions.json não existir) ──
-const DEFAULT_QUESTIONS = [
-  { q: "Qual o principal objetivo do Sistema Manufatura Enxuta?", options: ["Reduzir a demanda dos clientes","Reduzir os desperdícios para redução de custos e aumentar a qualidade","Realizar Manutenção preventiva e Trabalho padronizado","Aumentar o número de funcionários"], correct: 1 },
-  { q: "São atividades que agregam valor:", options: ["Movimentação e trabalho","Transformação do produto para atender o cliente","Retrabalho e qualidade","Transporte e estoque"], correct: 1 },
-  { q: "O Diagrama de Espaguete é uma ferramenta utilizada para analisar...", options: ["Tempo total de produção","Qualidade total do equipamento","Eficácia total do equipamento","Movimentação"], correct: 3 },
-  { q: "O retrabalho no processo produtivo não é desperdício, pois não descartamos o produto.", options: ["Verdadeiro","Falso"], correct: 1 },
-  { q: "Espera, estoque e transporte são desperdícios que podemos identificar e eliminar com Ferramentas da Manufatura Enxuta.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "Diagrama de Espaguete evidencia o movimento dos operadores no chão de fábrica.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "Os fluxos do Mapeamento de Fluxo de Valor (MFV) são: materiais e informações.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "São algumas das bases do sistema de Produção sem desperdícios:", options: ["Padronização dos processos e melhoria contínua","Variabilidade e excesso de produção","Aumento das vendas e entrega","Redução do atraso na entrega"], correct: 0 },
-  { q: "O Lean visa: Maior qualidade, menor custo e menor tempo de produção.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "Os indicadores de produção devem ser preenchidos e divulgados no chão de fábrica — Gerenciamento diário.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "São alguns dos benefícios da padronização:", options: ["Reduz o tempo de produção e aumenta o nível de qualidade","Torna as operações consistentes e permite a aplicação da melhoria contínua","Aprimora o processo e reduz o estresse do operário","Todas as alternativas anteriores"], correct: 3 },
-  { q: "O que sustenta as melhorias implementadas por mais tempo e com melhor performance?", options: ["Mudança de comportamentos e mentalidades","Mudança do sistema operacional","Mudança no Layout","Nenhuma das alternativas anteriores"], correct: 0 },
-  { q: "A metodologia do 5S é utilizada com qual(is) finalidade(s)?", options: ["Apenas organização visual","Apenas redução de custos","Organização, limpeza, padronização e disciplina no ambiente de trabalho","Somente treinamento de operadores"], correct: 2 },
-  { q: "O POP (Procedimento Operacional Padrão) é importante, pois...", options: ["Aumenta produtos defeituosos","Garante que atividades sejam realizadas sempre da mesma forma correta","Substitui o treinamento dos operadores","Reduz o número de funcionários"], correct: 1 },
-  { q: "Qual(is) o(s) objetivo(s) de organizar o local de trabalho usando a metodologia 5S?", options: ["Melhorar a segurança e produtividade","Aumentar o estoque","Reduzir o número de turnos","Substituir equipamentos antigos"], correct: 0 },
-  { q: "Eliminação de estoque, redução de custo e tempo são benefícios do sistema Just in Time.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "Como deve ser o processo de resolução de problemas?", options: ["Rápido e sem análise de causa raiz","Estruturado, identificando a causa raiz antes de agir","Baseado apenas na experiência do operador","Delegado apenas à gerência"], correct: 1 },
-  { q: "Qual é o objetivo do sistema puxado?", options: ["Produzir o máximo possível","Produzir somente o que o cliente demanda, na hora certa","Aumentar o estoque de segurança","Reduzir o número de fornecedores"], correct: 1 },
-  { q: "Por que é importante reduzir o tempo de troca de ferramenta?", options: ["Para aumentar o estoque","Para permitir lotes menores e maior flexibilidade de produção","Para reduzir o número de operadores","Para aumentar o tempo de ciclo"], correct: 1 },
-  { q: "São benefícios de um bom diálogo de desempenho:", options: ["Aumento de conflitos na equipe","Alinhamento de metas, engajamento e melhoria contínua","Redução da comunicação entre turnos","Nenhuma das alternativas"], correct: 1 },
-  { q: "São benefícios da Manutenção Planejada:", options: ["Aumento de quebras e paradas","Redução da vida útil dos equipamentos","Maior disponibilidade dos equipamentos e redução de custos com manutenção corretiva","Aumento do número de manutenções emergenciais"], correct: 2 },
-  { q: "Qual é a importância da Manutenção Autônoma?", options: ["Substituir totalmente a equipe de manutenção","Envolver os operadores nos cuidados básicos do equipamento, prevenindo falhas","Aumentar o tempo de parada dos equipamentos","Reduzir o treinamento dos técnicos"], correct: 1 },
-  { q: "São atividades da Manutenção Autônoma: limpar os equipamentos e sinalizar as alterações apresentadas no equipamento.", options: ["Verdadeiro","Falso"], correct: 0 },
-  { q: "O PDCA possui quatro etapas: Planejar, Desenvolver, Checar e Agir.", options: ["Verdadeiro","Falso"], correct: 1 },
-  { q: "Quais os benefícios da redução do tempo de troca de ferramenta?", options: ["Aumento do estoque intermediário","Maior flexibilidade, lotes menores e redução de desperdícios","Redução da qualidade do produto","Aumento do tempo de ciclo"], correct: 1 }
-];
-
-// Gera o questions.json na primeira execução se não existir
-if (!fs.existsSync(QUESTIONS_PATH)) saveQuestions(DEFAULT_QUESTIONS);
+// ── Gerar código (chamado pelo monitor ao clicar "Iniciar") ──
+app.post('/api/new-code', (_, res) => {
+  gameCode    = generateCode();
+  gameStarted = false;
+  players     = {};
+  qIndex      = 0;
+  sendMonitor({ type: 'new_code', gameCode });
+  res.json({ gameCode });
+});
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  const { networkInterfaces } = require('os');
-  const nets = networkInterfaces();
-  let localIP = 'localhost';
-  for (const iface of Object.values(nets)) {
-    for (const net of iface) {
-      if (net.family === 'IPv4' && !net.internal) { localIP = net.address; break; }
-    }
-  }
-  console.log(`\n🎯 Quiz B+P rodando!`);
-  console.log(`📺 Monitor:  http://${localIP}:${PORT}/monitor.html`);
-  console.log(`📱 Jogador:  http://${localIP}:${PORT}/jogador.html`);
-  console.log(`✏️  Editor:   http://${localIP}:${PORT}/editor.html\n`);
-});
+server.listen(PORT, () => console.log(`✅ Servidor rodando em http://localhost:${PORT}`));
