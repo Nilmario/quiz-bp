@@ -23,8 +23,8 @@
     #qrcode-wrap{background:#fff;border-radius:16px;padding:12px;display:inline-block;box-shadow:0 0 24px #e9456044}
     #qrcode-label{color:#aaa;font-size:0.8rem;margin-top:8px;text-align:center}
     #player-count{color:#2ecc71;font-size:1.1rem;margin:18px 0 10px}
-    #players-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:950px;margin:0 auto 24px}
-    .p-chip{background:#16213e;border:2px solid #e94560;border-radius:30px;padding:9px 20px;font-size:0.95rem;animation:pop .3s ease}
+    #players-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:1050px;margin:0 auto 24px}
+    .p-chip{background:#16213e;border:2px solid #e94560;border-radius:30px;padding:6px 14px;font-size:0.82rem;animation:pop .3s ease}
     @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
 
     /* PERGUNTA */
@@ -47,25 +47,80 @@
     .opt.correct{box-shadow:0 0 28px #2ecc71;border:3px solid #2ecc71;transform:scale(1.02)}
     .opt.wrong{opacity:.22}
 
-    /* CORRIDA */
+    /* CORRIDA — otimizada para até 40 jogadores */
     #s-race{text-align:center}
     #s-race h2{font-size:2rem;color:#f5a623;margin-bottom:4px}
-    .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:16px}
-    .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:10px 22px;display:inline-block;margin-bottom:20px;font-size:1.05rem}
+    .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:12px}
+    .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:8px 18px;display:inline-block;margin-bottom:14px;font-size:1rem}
     .race-correct-box b{color:#2ecc71}
-    .racetrack{position:relative;background:#0d1b3e;border-radius:20px;padding:20px 16px;overflow:hidden;max-width:900px;margin:0 auto 20px}
-    .racetrack::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);pointer-events:none}
-    .finish-line{position:absolute;right:20px;top:0;bottom:0;width:14px;background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);border-radius:4px;opacity:.7;z-index:2}
-    .finish-flag{position:absolute;right:6px;top:-10px;font-size:1.4rem;z-index:3}
-    .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:10px;position:relative;height:52px}
+
+    .racetrack{
+      position:relative;
+      background:#0d1b3e;
+      border-radius:20px;
+      padding:12px 16px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      max-width:1000px;
+      max-height:72vh;
+      margin:0 auto 16px;
+      scrollbar-width:thin;
+      scrollbar-color:#0f3460 #0d1b3e;
+    }
+    .racetrack::-webkit-scrollbar{width:6px}
+    .racetrack::-webkit-scrollbar-thumb{background:#0f3460;border-radius:3px}
+    .racetrack::before{
+      content:'';position:absolute;inset:0;
+      background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);
+      pointer-events:none;
+    }
+    .finish-line{
+      position:sticky;right:0;top:0;bottom:0;
+      width:14px;float:right;height:100%;
+      background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);
+      border-radius:4px;opacity:.7;z-index:2;
+      pointer-events:none;
+    }
+
+    .race-lane{
+      display:flex;align-items:center;gap:8px;
+      margin-bottom:6px;position:relative;
+      height:38px; /* menor para caber mais jogadores */
+    }
     .race-lane:last-child{margin-bottom:0}
-    .lane-label{width:120px;font-size:.8rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.5}
-    .lane-label small{display:block;color:#f5a623;font-size:.72rem}
-    .lane-road{flex:1;position:relative;height:44px;background:#16213e;border-radius:30px;overflow:visible}
-    .lane-road::after{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)}
-    .horse-wrap{position:absolute;top:50%;transform:translateY(-50%);z-index:4;display:flex;align-items:center;gap:2px}
-    .horse-wrap .horse {font-size: 1.9rem;line-height: 1;filter: drop-shadow(0 0 6px rgba(245,166,35,.7));transform: scaleX(-1); /* ✅ espelha o cavalo para correr da esquerda → direita */display: inline-block;}
-    .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.65rem;font-weight:900;border-radius:30px;padding:1px 5px;white-space:nowrap;opacity:0;transition:opacity .4s}
+
+    .lane-label{
+      width:110px;font-size:.72rem;font-weight:600;
+      text-align:right;white-space:nowrap;overflow:hidden;
+      text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.4
+    }
+    .lane-label small{display:block;color:#f5a623;font-size:.65rem}
+
+    .lane-road{
+      flex:1;position:relative;height:34px;
+      background:#16213e;border-radius:30px;overflow:visible
+    }
+    .lane-road::after{
+      content:'';position:absolute;top:50%;left:0;right:0;
+      height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)
+    }
+
+    .horse-wrap{
+      position:absolute;top:50%;transform:translateY(-50%);
+      z-index:4;display:flex;align-items:center;gap:2px
+    }
+    .horse-wrap .horse{
+      font-size:1.45rem; /* menor para caber raias compactas */
+      line-height:1;
+      filter:drop-shadow(0 0 5px rgba(245,166,35,.7));
+      transform:scaleX(-1);
+      display:inline-block;
+    }
+    .horse-wrap .pos-badge{
+      background:#f5a623;color:#1a1a2e;font-size:.6rem;
+      font-weight:900;border-radius:30px;padding:1px 4px;
+      white-space:nowrap;opacity:0;transition:opacity .4s
+    }
     .horse-wrap .pos-badge.show{opacity:1}
 
     /* PÓDIO FINAL */
@@ -81,12 +136,16 @@
     .podium-block:nth-child(1) .podium-pillar{height:110px;background:linear-gradient(180deg,#aaa,#666)}
     .podium-block:nth-child(2) .podium-pillar{height:165px;background:linear-gradient(180deg,#f5d020,#e6a817)}
     .podium-block:nth-child(3) .podium-pillar{height:80px;background:linear-gradient(180deg,#cd7f32,#9a5e25)}
-    .podium-rest{max-width:640px;margin:0 auto}
-    .rank-row{display:flex;align-items:center;gap:14px;background:#16213e;border-radius:12px;padding:13px 20px;margin-bottom:9px;opacity:0;transform:translateX(-30px);transition:opacity .4s ease,transform .4s ease}
+
+    /* Ranking final em 2 colunas para muitos jogadores */
+    .podium-rest{max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media(max-width:600px){.podium-rest{grid-template-columns:1fr}}
+
+    .rank-row{display:flex;align-items:center;gap:10px;background:#16213e;border-radius:12px;padding:10px 16px;opacity:0;transform:translateX(-30px);transition:opacity .4s ease,transform .4s ease}
     .rank-row.show{opacity:1;transform:translateX(0)}
-    .rank-pos{font-size:1.5rem;width:44px}
-    .rank-name{flex:1;font-size:1.1rem;font-weight:600}
-    .rank-pts{color:#2ecc71;font-size:1rem;font-weight:700}
+    .rank-pos{font-size:1.3rem;width:36px}
+    .rank-name{flex:1;font-size:.95rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rank-pts{color:#2ecc71;font-size:.9rem;font-weight:700;white-space:nowrap}
 
     /* BOTÕES */
     .btn{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff;border:none;border-radius:50px;padding:13px 34px;font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 18px #e9456044;transition:transform .2s}
@@ -162,7 +221,6 @@
   <div class="race-correct-box">✅ Resposta correta: <b id="race-answer-text"></b></div>
   <div class="racetrack">
     <div class="finish-line"></div>
-    <div class="finish-flag">🏁</div>
     <div id="race-lanes"></div>
   </div>
   <div class="btn-row">
@@ -205,6 +263,15 @@
 
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
+
+  // 40 emojis de cavalos/animais variados
+  const HORSES = [
+    '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄',
+    '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄',
+    '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄',
+    '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄',
+    '🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄'
+  ];
 
   function connect() {
     ws = new WebSocket(wsUrl);
@@ -282,10 +349,7 @@
     currentCorrect = d.correct;
 
     document.getElementById('q-num').textContent = `${d.index + 1}/${d.total}`;
-
-    // ✅ barra de progresso chega a 100% na última pergunta
     document.getElementById('q-bar').style.width = `${((d.index + 1) / d.total) * 100}%`;
-
     document.getElementById('q-text').textContent = d.question;
     document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
 
@@ -293,8 +357,6 @@
       o.className = 'opt';
       const txt = d.options[i] || '';
       document.getElementById(`o${i}`).textContent = txt;
-
-      // ✅ esconde opções vazias (perguntas V/F têm só 2 opções)
       o.style.display = txt ? 'flex' : 'none';
     });
 
@@ -304,19 +366,12 @@
   function updateTimer(t) {
     const el = document.getElementById('q-timer');
     el.textContent = t;
-    if (t <= 5) {
-      el.classList.add('urgent');
-    } else {
-      el.classList.remove('urgent');
-    }
+    el.classList.toggle('urgent', t <= 5);
   }
 
   // ══ CORRIDA ══
-  const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇'];
-
   function showReveal(data) {
     document.querySelectorAll('.opt').forEach((o, i) => {
-      // ✅ só aplica classe em opções visíveis
       if (o.style.display === 'none') return;
       o.classList.add(i === data.correct ? 'correct' : 'wrong');
     });
@@ -340,7 +395,6 @@
     const MIN_PCT  = 2;
     const MAX_PCT  = 88;
 
-    // ✅ Ordena por score para calcular posição de cada jogador
     const sorted = [...ranking].sort((a, b) => b.score - a.score);
     const total  = sorted.length;
 
@@ -358,13 +412,14 @@
       container.appendChild(lane);
     });
 
+    // Scrolla para o topo da pista antes de animar
+    const racetrack = document.querySelector('.racetrack');
+    racetrack.scrollTop = 0;
+
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ranking.forEach((p, i) => {
-        // ✅ Posição no ranking: 1º avança mais, último avança menos
         const pos      = sorted.findIndex(s => s.name === p.name) + 1;
-        const posRatio = 1 - ((pos - 1) / Math.max(total - 1, 1)); // 1.0 → 0.0
-
-        // ✅ Avança entre ~10% e ~88% da pista, proporcional à posição
+        const posRatio = 1 - ((pos - 1) / Math.max(total - 1, 1));
         const targetPct = MIN_PCT + Math.round(
           posRatio * (MAX_PCT - MIN_PCT) * 0.45 +
           (MAX_PCT - MIN_PCT) * 0.1
@@ -372,7 +427,7 @@
 
         const hw      = document.getElementById(`hw-${i}`);
         const scoreEl = document.getElementById(`score-count-${i}`);
-        const delay   = i * 150;
+        const delay   = i * 80; // delay menor para não demorar demais com 40 jogadores
 
         setTimeout(() => {
           hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
@@ -382,7 +437,7 @@
         setTimeout(() => animateCount(scoreEl, 0, p.score, DURATION), delay);
       });
 
-      const totalDelay = DURATION + ranking.length * 150 + 500;
+      const totalDelay = DURATION + ranking.length * 80 + 500;
       setTimeout(() => {
         updatePositionBadges(ranking);
         document.getElementById('btn-next-race').style.display = 'inline-block';
@@ -438,10 +493,14 @@
       stage.appendChild(block);
     });
 
+    // Do 4º em diante — em 2 colunas
     ranking.slice(3).forEach((p, i) => {
       const row = document.createElement('div');
       row.className = 'rank-row';
-      row.innerHTML = `<div class="rank-pos">${i+4}º</div><div class="rank-name">${p.name}</div><div class="rank-pts">⭐ ${p.score} pts</div>`;
+      row.innerHTML = `
+        <div class="rank-pos">${i+4}º</div>
+        <div class="rank-name">${p.name}</div>
+        <div class="rank-pts">⭐ ${p.score} pts</div>`;
       rest.appendChild(row);
     });
 
@@ -453,7 +512,7 @@
       }, 400 + ti * 700);
     });
     rest.querySelectorAll('.rank-row').forEach((r, i) => {
-      setTimeout(() => r.classList.add('show'), 400 + 3*700 + i*200);
+      setTimeout(() => r.classList.add('show'), 400 + 3*700 + i*100);
     });
   }
 
