@@ -35,7 +35,8 @@ let qIndex            = 0;
 let timer             = null;
 let timeLeft          = 0;
 let revealDone        = false;
-let questionStartTime = 0; // ✅ momento em que a pergunta foi enviada
+let questionStartTime = 0;
+let correctAnswerOrder = 0; // ✅ contador de ordem de acerto (1º, 2º, 3º...)
 
 function generateCode() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -68,16 +69,17 @@ function stopTimer() {
 
 function startTimer(limit) {
   stopTimer();
-  timeLeft          = limit;
-  revealDone        = false;
-  questionStartTime = Date.now(); // ✅ registra quando a pergunta começou
+  timeLeft           = limit;
+  revealDone         = false;
+  correctAnswerOrder = 0; // ✅ reseta ordem de acerto a cada pergunta
+  questionStartTime  = Date.now();
 
   const tickAll = () => {
     sendMonitor({ type: 'tick', timeLeft });
     Object.values(players).forEach(p => sendTo(p.ws, { type: 'tick', timeLeft }));
   };
 
-  tickAll(); // envia imediatamente o valor inicial
+  tickAll();
 
   timer = setInterval(() => {
     timeLeft--;
@@ -102,7 +104,6 @@ function revealAnswer() {
     isLast
   });
 
-  // ✅ envia pontos ganhos nesta rodada para cada jogador
   Object.values(players).forEach(p => {
     const hit          = p.lastAnswer === q.correct;
     const pointsGained = p.lastEarned || 0;
@@ -170,7 +171,14 @@ wss.on('connection', ws => {
       if (dup) { sendTo(ws, { type: 'error', msg: 'Nome já em uso.' }); return; }
 
       playerId = crypto.randomUUID();
-      players[playerId] = { ws, name, score: 0, answered: false, lastAnswer: null, lastEarned: 0 };
+      players[playerId] = {
+        ws,
+        name,
+        score      : 0,
+        answered   : false,
+        lastAnswer : null,
+        lastEarned : 0
+      };
       sendTo(ws, { type: 'joined', name });
       sendMonitor({ type: 'player_joined', players: playerList() });
       return;
@@ -188,7 +196,17 @@ wss.on('connection', ws => {
       return;
     }
 
+    // ─────────────────────────────────────────────────────────────
     // ── Resposta do jogador ──
+    // Regras:
+    //   • Errou          → 0 pontos
+    //   • Acertou        → pontuação baseada em posição + tempo
+    //     - Base: 1000 pts para quem acertar (independente de ordem)
+    //     - Bônus de ordem: quem acertar PRIMEIRO ganha +500,
+    //       o 2º +450, o 3º +400 … (decrementa 50 por posição, mín 0)
+    //     - Bônus de tempo: proporcional ao tempo restante real (+até 500)
+    //     - Total máximo: ~2000 pts  |  Total mínimo se acertou: 1000 pts
+    // ─────────────────────────────────────────────────────────────
     if (data.type === 'answer') {
       const p = playerId && players[playerId];
       if (!p || p.answered || revealDone) return;
@@ -200,20 +218,38 @@ wss.on('connection', ws => {
       const timeLimit = q.timeLimit || 20;
 
       if (data.option === q.correct) {
-        // ✅ Calcula tempo decorrido em segundos desde o início da pergunta
-        const elapsed     = (Date.now() - questionStartTime) / 1000;
-        const timeBonus   = Math.max(0, timeLimit - elapsed);         // segundos restantes reais
-        const basePoints  = 500;
-        const bonusPoints = Math.round((timeBonus / timeLimit) * 500); // até +500 de bônus
-        const earned      = basePoints + bonusPoints;                  // entre 500 e 1000 pts
+        // 1) Incrementa ordem de acerto ANTES de calcular
+        correctAnswerOrder++;
+        const order = correctAnswerOrder; // posição: 1 = primeiro a acertar
+
+        // 2) Bônus de ordem (quem acertou primeiro ganha mais)
+        //    1º → +500, 2º → +450, 3º → +400 … mínimo 0
+        const orderBonus = Math.max(0, 500 - (order - 1) * 50);
+
+        // 3) Bônus de tempo (baseado no tempo real restante)
+        const elapsed   = (Date.now() - questionStartTime) / 1000; // segundos gastos
+        const remaining = Math.max(0, timeLimit - elapsed);         // segundos restantes reais
+        const timeBonus = Math.round((remaining / timeLimit) * 500); // 0 → 500
+
+        // 4) Pontuação final
+        const earned = 1000 + orderBonus + timeBonus;
+
         p.score      += earned;
         p.lastEarned  = earned;
+
       } else {
+        // ❌ Errou → zero pontos
         p.lastEarned = 0;
       }
 
       const answeredCount = Object.values(players).filter(x => x.answered).length;
-      sendMonitor({ type: 'answer_update', answeredCount, totalPlayers: Object.keys(players).length });
+      sendMonitor({
+        type         : 'answer_update',
+        answeredCount,
+        totalPlayers : Object.keys(players).length
+      });
+
+      // Se todos responderam, revela imediatamente
       if (answeredCount === Object.keys(players).length) revealAnswer();
       return;
     }
@@ -245,16 +281,15 @@ function sendQuestion() {
   Object.values(players).forEach(p => {
     p.answered   = false;
     p.lastAnswer = null;
-    p.lastEarned = 0; // ✅ reseta pontos da rodada anterior
+    p.lastEarned = 0;
   });
 
-  // ✅ limpa opções vazias antes de enviar (suporte a perguntas V/F)
   const cleanOptions = q.options.filter(o => o && o.trim());
 
   sendMonitor({
     type     : 'question',
     question : q.question,
-    options  : q.options,     // monitor recebe todas (inclusive vazias para layout)
+    options  : q.options,
     correct  : q.correct,
     index    : qIndex,
     total    : questions.length,
@@ -265,7 +300,7 @@ function sendQuestion() {
     sendTo(p.ws, {
       type     : 'question',
       question : q.question,
-      options  : cleanOptions, // jogador recebe só opções com texto
+      options  : cleanOptions,
       index    : qIndex,
       total    : questions.length,
       timeLimit
@@ -281,28 +316,30 @@ function resetAll() {
     sendTo(p.ws, { type: 'kicked', msg: 'A sala foi reiniciada.' });
     p.ws.close();
   });
-  players           = {};
-  gameStarted       = false;
-  gameCode          = null;
-  qIndex            = 0;
-  revealDone        = false;
-  timeLeft          = 0;
-  questionStartTime = 0;
-  questions         = [];
+  players            = {};
+  gameStarted        = false;
+  gameCode           = null;
+  qIndex             = 0;
+  revealDone         = false;
+  timeLeft           = 0;
+  questionStartTime  = 0;
+  correctAnswerOrder = 0;
+  questions          = [];
   sendMonitor({ type: 'reset' });
 }
 
 // ── Gerar código ──
 app.post('/api/new-code', (_, res) => {
   stopTimer();
-  gameCode          = generateCode();
-  gameStarted       = false;
-  players           = {};
-  qIndex            = 0;
-  revealDone        = false;
-  timeLeft          = 0;
-  questionStartTime = 0;
-  questions         = [];
+  gameCode           = generateCode();
+  gameStarted        = false;
+  players            = {};
+  qIndex             = 0;
+  revealDone         = false;
+  timeLeft           = 0;
+  questionStartTime  = 0;
+  correctAnswerOrder = 0;
+  questions          = [];
   sendMonitor({ type: 'new_code', gameCode });
   res.json({ gameCode });
 });
