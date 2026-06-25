@@ -64,7 +64,7 @@
     .lane-road{flex:1;position:relative;height:44px;background:#16213e;border-radius:30px;overflow:visible}
     .lane-road::after{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)}
     .horse-wrap{position:absolute;top:50%;transform:translateY(-50%);z-index:4;display:flex;align-items:center;gap:2px}
-    .horse-wrap .horse{font-size:1.9rem;line-height:1;filter:drop-shadow(0 0 6px rgba(245,166,35,.7))}
+    .horse-wrap .horse {font-size: 1.9rem;line-height: 1;filter: drop-shadow(0 0 6px rgba(245,166,35,.7));transform: scaleX(-1); /* ✅ espelha o cavalo para correr da esquerda → direita */display: inline-block;}
     .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.65rem;font-weight:900;border-radius:30px;padding:1px 5px;white-space:nowrap;opacity:0;transition:opacity .4s}
     .horse-wrap .pos-badge.show{opacity:1}
 
