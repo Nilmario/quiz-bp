@@ -23,10 +23,6 @@
     .btn.red{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff}
     .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449);color:#fff}
 
-    /* Código de entrada */
-    #s-code h2{color:#f5a623;font-size:1.6rem;margin-bottom:8px}
-    .code-info{color:#aaa;font-size:.9rem;margin-bottom:20px}
-
     /* Aguardando */
     #s-wait .avatar{font-size:4rem;margin-bottom:12px}
     #s-wait h2{color:#2ecc71;font-size:1.5rem;margin-bottom:8px}
@@ -39,7 +35,7 @@
     #q-progress{background:#0f3460;border-radius:50px;height:8px;margin-bottom:16px;overflow:hidden}
     #q-progress-bar{height:100%;background:linear-gradient(90deg,#e94560,#f5a623);border-radius:50px;transition:width .4s}
     #q-counter{color:#aaa;font-size:.85rem;margin-bottom:10px}
-    #q-timer-player{font-size:2.8rem;font-weight:900;color:#f5a623;margin-bottom:16px}
+    #q-timer-player{font-size:2.8rem;font-weight:900;color:#f5a623;margin-bottom:16px;transition:all .3s}
     #q-timer-player.urgent{color:#e94560;animation:pulse .5s infinite alternate}
     @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.08)}}
     #q-text-player{background:#16213e;border-radius:14px;padding:22px;font-size:1.15rem;font-weight:600;line-height:1.5;margin-bottom:18px;border:2px solid #0f3460;min-height:90px;display:flex;align-items:center;justify-content:center}
@@ -134,7 +130,6 @@
 
   let ws, myName = '', myCode = '', myScore = 0;
   const ICONS = ['▲','◆','●','■'];
-  const COLORS = ['#e94560','#1a6fbf','#f5a623','#27ae60'];
 
   function connect() {
     ws = new WebSocket(wsUrl);
@@ -143,18 +138,19 @@
   }
 
   function handle(data) {
-    if (data.type === 'code_ok')    { show('s-join'); }
+    if (data.type === 'code_ok')      { show('s-join'); }
     if (data.type === 'code_invalid') { toastP('❌ Código inválido ou partida não encontrada!'); }
-    if (data.type === 'joined')     { myName = data.name; show('s-wait'); document.getElementById('wait-name').textContent = `👋 ${myName}`; }
-    if (data.type === 'question')   { showQuestion(data); }
-    if (data.type === 'tick')       { updateTimerP(data.timeLeft); }
-    if (data.type === 'reveal')     { showResult(data); }
-    if (data.type === 'game_over')  { showGameOver(data.ranking); }
-    if (data.type === 'kicked')     { toastP('🔄 A sala foi reiniciada.'); setTimeout(() => location.reload(), 2000); }
-    if (data.type === 'error')      { toastP(data.msg); }
+    if (data.type === 'joined')       { myName = data.name; show('s-wait'); document.getElementById('wait-name').textContent = `👋 ${myName}`; }
+    if (data.type === 'question')     { showQuestion(data); }
+    if (data.type === 'tick')         { updateTimerP(data.timeLeft); }
+    if (data.type === 'reveal')       { showResult(data); }
+    if (data.type === 'game_over')    { showGameOver(data.ranking); }
+    if (data.type === 'kicked')       { toastP('🔄 A sala foi reiniciada.'); setTimeout(() => location.reload(), 2000); }
+    if (data.type === 'error')        { toastP(data.msg); }
   }
 
   function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
   function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -174,45 +170,65 @@
   }
 
   function showQuestion(d) {
-    myScore = 0;
+    // ✅ FIX 1: NÃO zera myScore aqui — o placar acumula entre rodadas
     show('s-question-p');
-    document.getElementById('q-counter').textContent     = `Pergunta ${d.index+1}/${d.total}`;
-    document.getElementById('q-progress-bar').style.width= `${(d.index/d.total)*100}%`;
+
+    document.getElementById('q-counter').textContent      = `Pergunta ${d.index + 1}/${d.total}`;
+    // ✅ FIX 2: barra de progresso usa (index+1) para chegar a 100% na última
+    document.getElementById('q-progress-bar').style.width = `${((d.index + 1) / d.total) * 100}%`;
+    document.getElementById('q-text-player').textContent  = d.question;
+
     updateTimerP(d.timeLimit);
 
     const grid = document.getElementById('opt-grid');
     grid.innerHTML = '';
-    d.options.forEach((_, i) => {
+
+    // ✅ FIX 3: itera sobre as opções reais — esconde botões de opções vazias (V/F)
+    d.options.forEach((optText, i) => {
+      if (!optText) return; // pula opções vazias
+
       const btn = document.createElement('button');
       btn.className = 'opt-btn';
-      btn.innerHTML = `<span class="opt-icon-big">${ICONS[i]}</span><span id="opt-txt-${i}">...</span>`;
-      btn.onclick   = () => answer(i);
+      btn.innerHTML = `<span class="opt-icon-big">${ICONS[i]}</span><span>${optText}</span>`;
+      btn.dataset.index = i; // guarda o índice real da opção
+      btn.onclick = () => answer(i, btn);
       grid.appendChild(btn);
     });
   }
 
-  // O servidor envia só os índices das opções (sem texto)
-  // Texto vem via 'question' mas aqui tratamos genérico
   function updateTimerP(t) {
     const el = document.getElementById('q-timer-player');
-    if (el) { el.textContent = t; el.className = t <= 5 ? 'urgent' : ''; }
+    if (!el) return;
+    el.textContent = t;
+    // ✅ FIX 4: usa classList para não apagar o id/estilo base
+    if (t <= 5) {
+      el.classList.add('urgent');
+    } else {
+      el.classList.remove('urgent');
+    }
   }
 
-  function answer(opt) {
+  function answer(opt, btnClicked) {
     send({ type:'answer', option: opt });
-    document.querySelectorAll('.opt-btn').forEach((b,i) => {
+    // Desabilita todos os botões e marca o selecionado
+    document.querySelectorAll('.opt-btn').forEach(b => {
       b.disabled = true;
-      if (i === opt) b.classList.add('selected');
+      b.classList.remove('selected');
     });
+    // ✅ FIX 5: marca pelo botão clicado (não por índice do DOM, que pode variar em V/F)
+    if (btnClicked) btnClicked.classList.add('selected');
   }
 
   function showResult(data) {
     show('s-result');
-    myScore = data.score || 0;
+    // ✅ FIX 6: atualiza myScore com o valor real vindo do servidor
+    myScore = data.score ?? myScore;
     const hit = data.hit;
     document.getElementById('result-icon').textContent  = hit ? '🎉' : '😢';
     document.getElementById('result-title').textContent = hit ? 'Correto!' : 'Errou...';
-    document.getElementById('result-sub').textContent   = hit ? 'Muito bem!' : 'Não foi dessa vez!';
+    document.getElementById('result-sub').textContent   = hit
+      ? `+${data.points || 0} pontos ganhos!`
+      : 'Não foi dessa vez!';
     document.getElementById('result-pts').textContent   = `⭐ Total: ${myScore} pts`;
   }
 
@@ -220,14 +236,14 @@
     show('s-gameover');
     const list = document.getElementById('gameover-list');
     list.innerHTML = '';
-    const sorted = [...ranking].sort((a,b) => b.score - a.score);
+    const sorted = [...ranking].sort((a, b) => b.score - a.score);
     const medals  = ['🥇','🥈','🥉'];
-    sorted.forEach((p,i) => {
+    sorted.forEach((p, i) => {
       const div = document.createElement('div');
       div.className = 'rank-item' + (p.name === myName ? ' me' : '');
       div.innerHTML = `
-        <div class="pos">${medals[i] || `${i+1}º`}</div>
-        <div class="rname">${p.name}${p.name===myName?' (você)':''}</div>
+        <div class="pos">${medals[i] || `${i + 1}º`}</div>
+        <div class="rname">${p.name}${p.name === myName ? ' (você)' : ''}</div>
         <div class="rpts">⭐ ${p.score}</div>`;
       list.appendChild(div);
     });
@@ -240,9 +256,8 @@
     setTimeout(() => t.style.display = 'none', 3000);
   }
 
-  // Enter nos inputs
-  document.getElementById('inp-code').addEventListener('keydown', e => { if(e.key==='Enter') validateCode(); });
-  document.getElementById('inp-name').addEventListener('keydown', e => { if(e.key==='Enter') joinGame(); });
+  document.getElementById('inp-code').addEventListener('keydown', e => { if (e.key === 'Enter') validateCode(); });
+  document.getElementById('inp-name').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
 
   connect();
 </script>
