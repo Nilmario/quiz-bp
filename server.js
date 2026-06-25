@@ -2,15 +2,209 @@ const express = require('express');
 const http = require('http');
 const { WebSocketServer } = require('ws');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── BANCO DE PERGUNTAS ───────────────────────────────────────────────────────
-const QUESTIONS = [
+// ── Carrega perguntas do questions.json (ou usa o padrão embutido) ──
+const QUESTIONS_PATH = path.join(__dirname, 'questions.json');
+
+function loadQuestions() {
+  try {
+    if (fs.existsSync(QUESTIONS_PATH)) {
+      return JSON.parse(fs.readFileSync(QUESTIONS_PATH, 'utf8'));
+    }
+  } catch (e) { console.error('Erro ao carregar questions.json:', e); }
+  return DEFAULT_QUESTIONS;
+}
+
+function saveQuestions(list) {
+  fs.writeFileSync(QUESTIONS_PATH, JSON.stringify(list, null, 2), 'utf8');
+}
+
+// ── API REST para editar perguntas ──
+app.get('/api/questions', (_, res) => res.json(loadQuestions()));
+
+app.post('/api/questions', (req, res) => {
+  const list = req.body;
+  if (!Array.isArray(list)) return res.status(400).json({ error: 'Formato inválido' });
+  saveQuestions(list);
+  res.json({ ok: true });
+});
+
+// ── Estado do jogo ──
+let state = {
+  screen: 'lobby',
+  currentQ: 0,
+  timeLeft: 20,
+  players: {}
+};
+
+let timerInterval = null;
+let monitor = null;
+
+function broadcast(data, exclude = null) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach(c => {
+    if (c !== exclude && c.readyState === 1) c.send(msg);
+  });
+}
+
+function sendTo(ws, data) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
+}
+
+function startTimer(duration, onTick, onEnd) {
+  clearInterval(timerInterval);
+  state.timeLeft = duration;
+  onTick(state.timeLeft);
+  timerInterval = setInterval(() => {
+    state.timeLeft--;
+    onTick(state.timeLeft);
+    if (state.timeLeft <= 0) { clearInterval(timerInterval); onEnd(); }
+  }, 1000);
+}
+
+function getPlayerList() {
+  return Object.entries(state.players).map(([name, d]) => ({ name, score: d.score, streak: d.streak }));
+}
+
+function getRanking() {
+  return getPlayerList().sort((a, b) => b.score - a.score);
+}
+
+wss.on('connection', (ws) => {
+  ws.on('message', (raw) => {
+    let data;
+    try { data = JSON.parse(raw); } catch { return; }
+
+    if (data.type === 'monitor_connect') {
+      monitor = ws;
+      ws.role = 'monitor';
+      sendTo(ws, { type: 'state', players: getPlayerList() });
+    }
+
+    if (data.type === 'join') {
+      const name = data.name?.trim().slice(0, 20);
+      if (!name) return;
+      ws.role = 'player';
+      ws.playerName = name;
+      if (!state.players[name]) {
+        state.players[name] = { score: 0, streak: 0, ws };
+      } else {
+        state.players[name].ws = ws;
+      }
+      sendTo(ws, { type: 'joined', name, screen: state.screen });
+      sendTo(monitor, { type: 'player_joined', players: getPlayerList() });
+    }
+
+    if (data.type === 'start_game' && ws.role === 'monitor') {
+      Object.values(state.players).forEach(p => { p.score = 0; p.streak = 0; });
+      state.currentQ = 0;
+      sendQuestion();
+    }
+
+    if (data.type === 'next_question' && ws.role === 'monitor') {
+      state.currentQ++;
+      const QUESTIONS = loadQuestions();
+      if (state.currentQ >= QUESTIONS.length) endGame();
+      else sendQuestion();
+    }
+
+    if (data.type === 'answer' && ws.role === 'player') {
+      const player = state.players[ws.playerName];
+      if (!player || player.answered) return;
+      player.answered = true;
+      const QUESTIONS = loadQuestions();
+      const q = QUESTIONS[state.currentQ];
+      const isCorrect = data.answer === q.correct;
+      const timeBonus = Math.round(800 * (state.timeLeft / 20));
+      let pts = 0;
+      if (isCorrect) {
+        player.streak = (player.streak || 0) + 1;
+        const streakBonus = player.streak >= 3 ? 150 : 0;
+        pts = 200 + timeBonus + streakBonus;
+        player.score += pts;
+      } else {
+        player.streak = 0;
+      }
+      sendTo(ws, { type: 'answer_result', correct: isCorrect, points: pts, score: player.score });
+      const answeredCount = Object.values(state.players).filter(p => p.answered).length;
+      sendTo(monitor, { type: 'answer_update', answeredCount, totalPlayers: Object.keys(state.players).length });
+    }
+
+    if (data.type === 'reveal_answer' && ws.role === 'monitor') {
+      clearInterval(timerInterval);
+      revealAnswer();
+    }
+
+    if (data.type === 'reset_game' && ws.role === 'monitor') {
+      clearInterval(timerInterval);
+      state = { screen: 'lobby', currentQ: 0, timeLeft: 20, players: state.players };
+      Object.values(state.players).forEach(p => { p.score = 0; p.streak = 0; p.answered = false; });
+      broadcast({ type: 'reset' });
+    }
+  });
+
+  ws.on('close', () => {
+    if (ws.role === 'monitor') { monitor = null; console.log('Monitor desconectado'); }
+    if (ws.role === 'player')  console.log(`Jogador desconectado: ${ws.playerName}`);
+  });
+});
+
+function sendQuestion() {
+  state.screen = 'question';
+  const QUESTIONS = loadQuestions();
+  const q = QUESTIONS[state.currentQ];
+  Object.values(state.players).forEach(p => { p.answered = false; });
+
+  sendTo(monitor, {
+    type: 'question',
+    index: state.currentQ,
+    total: QUESTIONS.length,
+    question: q.q,
+    options: q.options,
+    correct: q.correct,
+    timeLimit: 20
+  });
+
+  Object.values(state.players).forEach(p => {
+    sendTo(p.ws, {
+      type: 'question',
+      index: state.currentQ,
+      total: QUESTIONS.length,
+      options: q.options,
+      timeLimit: 20
+    });
+  });
+
+  startTimer(20,
+    (t) => sendTo(monitor, { type: 'tick', timeLeft: t }),
+    () => revealAnswer()
+  );
+}
+
+function revealAnswer() {
+  state.screen = 'reveal';
+  const QUESTIONS = loadQuestions();
+  const q = QUESTIONS[state.currentQ];
+  const isLast = state.currentQ >= QUESTIONS.length - 1;
+  broadcast({ type: 'reveal', correct: q.correct, correctText: q.options[q.correct], ranking: getRanking(), isLast });
+}
+
+function endGame() {
+  state.screen = 'final';
+  clearInterval(timerInterval);
+  broadcast({ type: 'final', ranking: getRanking() });
+}
+
+// ── Perguntas padrão (usadas se questions.json não existir) ──
+const DEFAULT_QUESTIONS = [
   { q: "Qual o principal objetivo do Sistema Manufatura Enxuta?", options: ["Reduzir a demanda dos clientes","Reduzir os desperdícios para redução de custos e aumentar a qualidade","Realizar Manutenção preventiva e Trabalho padronizado","Aumentar o número de funcionários"], correct: 1 },
   { q: "São atividades que agregam valor:", options: ["Movimentação e trabalho","Transformação do produto para atender o cliente","Retrabalho e qualidade","Transporte e estoque"], correct: 1 },
   { q: "O Diagrama de Espaguete é uma ferramenta utilizada para analisar...", options: ["Tempo total de produção","Qualidade total do equipamento","Eficácia total do equipamento","Movimentação"], correct: 3 },
@@ -38,225 +232,21 @@ const QUESTIONS = [
   { q: "Quais os benefícios da redução do tempo de troca de ferramenta?", options: ["Aumento do estoque intermediário","Maior flexibilidade, lotes menores e redução de desperdícios","Redução da qualidade do produto","Aumento do tempo de ciclo"], correct: 1 }
 ];
 
-// ─── ESTADO DO JOGO ────────────────────────────────────────────────────────────
-let state = {
-  screen: 'lobby',
-  currentQ: 0,
-  timeLeft: 20,
-  players: {}
-};
+// Gera o questions.json na primeira execução se não existir
+if (!fs.existsSync(QUESTIONS_PATH)) saveQuestions(DEFAULT_QUESTIONS);
 
-let timerInterval = null;
-let monitor = null;
-
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
-function send(ws, data) {
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify(data));
-}
-
-function broadcast(data, exclude = null) {
-  wss.clients.forEach(c => {
-    if (c !== exclude && c.readyState === 1) c.send(JSON.stringify(data));
-  });
-}
-
-function getPlayerList() {
-  return Object.entries(state.players)
-    .map(([name, d]) => ({ name, score: d.score, streak: d.streak }));
-}
-
-function getRanking() {
-  return getPlayerList().sort((a, b) => b.score - a.score);
-}
-
-function startTimer(seconds, onEnd) {
-  clearInterval(timerInterval);
-  state.timeLeft = seconds;
-  send(monitor, { type: 'tick', timeLeft: state.timeLeft });
-
-  timerInterval = setInterval(() => {
-    state.timeLeft--;
-    send(monitor, { type: 'tick', timeLeft: state.timeLeft });
-    if (state.timeLeft <= 0) {
-      clearInterval(timerInterval);
-      onEnd();
-    }
-  }, 1000);
-}
-
-// ─── LÓGICA DO JOGO ────────────────────────────────────────────────────────────
-function sendQuestion() {
-  state.screen = 'question';
-  const q = QUESTIONS[state.currentQ];
-  Object.values(state.players).forEach(p => { p.answered = false; });
-
-  // Monitor recebe gabarito
-  send(monitor, {
-    type: 'question',
-    index: state.currentQ,
-    total: QUESTIONS.length,
-    question: q.q,
-    options: q.options,
-    correct: q.correct,
-    timeLimit: 20
-  });
-
-  // Jogadores NÃO recebem gabarito
-  Object.values(state.players).forEach(p => {
-    send(p.ws, {
-      type: 'question',
-      index: state.currentQ,
-      total: QUESTIONS.length,
-      options: q.options,
-      timeLimit: 20
-    });
-  });
-
-  startTimer(20, () => revealAnswer());
-}
-
-function revealAnswer() {
-  state.screen = 'reveal';
-  clearInterval(timerInterval);
-  const q = QUESTIONS[state.currentQ];
-  const isLast = state.currentQ >= QUESTIONS.length - 1;
-  broadcast({ type: 'reveal', correct: q.correct, ranking: getRanking().slice(0, 5), isLast });
-}
-
-function endGame() {
-  state.screen = 'final';
-  clearInterval(timerInterval);
-  broadcast({ type: 'final', ranking: getRanking() });
-}
-
-// ─── WEBSOCKET ────────────────────────────────────────────────────────────────
-wss.on('connection', (ws) => {
-
-  // Keepalive ping para evitar timeout no Railway
-  const ping = setInterval(() => {
-    if (ws.readyState === 1) ws.ping();
-  }, 25000);
-
-  ws.on('close', () => {
-    clearInterval(ping);
-    if (ws === monitor) { monitor = null; console.log('Monitor desconectou'); }
-    if (ws.playerName) console.log(`Saiu: ${ws.playerName}`);
-  });
-
-  ws.on('message', (raw) => {
-    let data;
-    try { data = JSON.parse(raw); } catch { return; }
-
-    // ── Monitor conecta ──
-    if (data.type === 'monitor_connect') {
-      monitor = ws;
-      ws.role = 'monitor';
-      send(ws, { type: 'state', players: getPlayerList(), screen: state.screen });
-      console.log('Monitor conectado');
-      return;
-    }
-
-    // ── Jogador entra ──
-    if (data.type === 'join') {
-      const name = (data.name || '').trim().slice(0, 20);
-      if (!name) return;
-
-      // Bloqueia entrada se jogo já começou
-      if (state.screen !== 'lobby') {
-        send(ws, { type: 'error', msg: 'O jogo já começou! Aguarde a próxima rodada.' });
-        return;
-      }
-
-      ws.role = 'player';
-      ws.playerName = name;
-
-      // Reconexão ou novo jogador
-      if (state.players[name]) {
-        state.players[name].ws = ws;
-      } else {
-        state.players[name] = { score: 0, streak: 0, answered: false, ws };
-      }
-
-      send(ws, { type: 'joined', name });
-      send(monitor, { type: 'player_joined', players: getPlayerList() });
-      console.log(`Entrou: ${name} | Total: ${Object.keys(state.players).length}`);
-      return;
-    }
-
-    // ── Monitor inicia ──
-    if (data.type === 'start_game' && ws === monitor) {
-      if (Object.keys(state.players).length === 0) {
-        send(monitor, { type: 'error', msg: 'Nenhum jogador conectado!' });
-        return;
-      }
-      Object.values(state.players).forEach(p => { p.score = 0; p.streak = 0; p.answered = false; });
-      state.currentQ = 0;
-      sendQuestion();
-      return;
-    }
-
-    // ── Monitor avança ──
-    if (data.type === 'next_question' && ws === monitor) {
-      state.currentQ++;
-      if (state.currentQ >= QUESTIONS.length) {
-        endGame();
-      } else {
-        sendQuestion();
-      }
-      return;
-    }
-
-    // ── Monitor revela manualmente ──
-    if (data.type === 'reveal_answer' && ws === monitor) {
-      clearInterval(timerInterval);
-      revealAnswer();
-      return;
-    }
-
-    // ── Jogador responde ──
-    if (data.type === 'answer' && ws.role === 'player') {
-      const player = state.players[ws.playerName];
-      if (!player || player.answered || state.screen !== 'question') return;
-
-      player.answered = true;
-      const q = QUESTIONS[state.currentQ];
-      const isCorrect = data.answer === q.correct;
-      const timeBonus = Math.round(800 * (state.timeLeft / 20));
-      let pts = 0;
-
-      if (isCorrect) {
-        player.streak = (player.streak || 0) + 1;
-        const streakBonus = player.streak >= 3 ? 150 : 0;
-        pts = 200 + timeBonus + streakBonus;
-        player.score += pts;
-      } else {
-        player.streak = 0;
-      }
-
-      send(ws, { type: 'answer_result', correct: isCorrect, points: pts, score: player.score });
-
-      const answeredCount = Object.values(state.players).filter(p => p.answered).length;
-      const totalPlayers = Object.keys(state.players).length;
-      send(monitor, { type: 'answer_update', answeredCount, totalPlayers });
-
-      // Auto-revela se todos responderam
-      if (answeredCount === totalPlayers) {
-        clearInterval(timerInterval);
-        setTimeout(() => revealAnswer(), 800);
-      }
-      return;
-    }
-
-    // ── Monitor reseta ──
-    if (data.type === 'reset_game' && ws === monitor) {
-      clearInterval(timerInterval);
-      state = { screen: 'lobby', currentQ: 0, timeLeft: 20, players: {} };
-      broadcast({ type: 'reset' });
-      return;
-    }
-  });
-});
-
-// ─── START ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`🎯 Quiz B+P online na porta ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+  const { networkInterfaces } = require('os');
+  const nets = networkInterfaces();
+  let localIP = 'localhost';
+  for (const iface of Object.values(nets)) {
+    for (const net of iface) {
+      if (net.family === 'IPv4' && !net.internal) { localIP = net.address; break; }
+    }
+  }
+  console.log(`\n🎯 Quiz B+P rodando!`);
+  console.log(`📺 Monitor:  http://${localIP}:${PORT}/monitor.html`);
+  console.log(`📱 Jogador:  http://${localIP}:${PORT}/jogador.html`);
+  console.log(`✏️  Editor:   http://${localIP}:${PORT}/editor.html\n`);
+});
