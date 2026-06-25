@@ -44,7 +44,6 @@
     #q-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
     #q-num{background:#16213e;padding:9px 20px;border-radius:20px;color:#aaa;font-size:.95rem}
 
-    /* Timer circular SVG */
     .timer-wrap{position:relative;width:80px;height:80px;display:flex;align-items:center;justify-content:center}
     .timer-svg{position:absolute;top:0;left:0;transform:rotate(-90deg)}
     .timer-bg{fill:none;stroke:#16213e;stroke-width:6}
@@ -66,8 +65,6 @@
     .opt-icon{font-size:1.5rem;flex-shrink:0}
     .opt.correct{box-shadow:0 0 28px #2ecc71;border:3px solid #2ecc71;transform:scale(1.02)}
     .opt.wrong{opacity:.22}
-
-    /* Barra de votos dentro da opção */
     .opt-bar{position:absolute;bottom:0;left:0;height:5px;background:rgba(255,255,255,.4);transition:width 1s ease;width:0%}
     .opt-vote-count{margin-left:auto;font-size:.85rem;opacity:.8;flex-shrink:0}
 
@@ -96,18 +93,16 @@
     .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.6rem;font-weight:900;border-radius:30px;padding:1px 4px;white-space:nowrap;opacity:0;transition:opacity .4s}
     .horse-wrap .pos-badge.show{opacity:1}
 
-    /* Pontos flutuantes +pts */
     .pts-float{position:absolute;top:-8px;font-size:.75rem;font-weight:900;color:#2ecc71;text-shadow:0 0 8px #2ecc71;animation:floatUp 1.8s ease forwards;pointer-events:none;z-index:10;white-space:nowrap}
     @keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-36px)}}
 
-    /* Animação de subida/descida de lane */
     @keyframes laneUp{0%{background:rgba(46,204,113,.0)}50%{background:rgba(46,204,113,.12)}100%{background:rgba(46,204,113,.0)}}
     @keyframes laneDown{0%{background:rgba(233,69,96,.0)}50%{background:rgba(233,69,96,.10)}100%{background:rgba(233,69,96,.0)}}
     .lane-moving-up{animation:laneUp 0.8s ease}
     .lane-moving-down{animation:laneDown 0.8s ease}
 
     /* ── PÓDIO FINAL ── */
-    #s-final{text-align:center}
+    #s-final{text-align:center;position:relative;z-index:1}
     #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:10px}
     .podium-stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:24px auto 30px;max-width:700px}
     .podium-block{display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(60px);transition:opacity .6s ease,transform .6s ease}
@@ -137,10 +132,12 @@
     .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449);box-shadow:0 4px 18px #27ae6044}
     .btn-row{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap}
 
-    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:12px 28px;border-radius:30px;font-weight:600;display:none;z-index:999;animation:slideUp .3s ease}
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:12px 28px;border-radius:30px;font-weight:600;display:none;z-index:9999;animation:slideUp .3s ease}
     @keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
-    #confetti-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:998;display:none}
-    #fireworks-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:997;display:none}
+
+    /* Canvas de efeitos SEMPRE atrás do conteúdo */
+    #confetti-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:50;display:none}
+    #fireworks-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:49;display:none}
   </style>
 </head>
 <body>
@@ -200,7 +197,7 @@
   <div id="q-opts">
     <div class="opt"><span class="opt-icon">▲</span><span id="o0"></span><span class="opt-bar" id="bar0"></span><span class="opt-vote-count" id="vc0"></span></div>
     <div class="opt"><span class="opt-icon">◆</span><span id="o1"></span><span class="opt-bar" id="bar1"></span><span class="opt-vote-count" id="vc1"></span></div>
-    <div class="opt"><span class="opt-icon">●</span><span id="o2"></span><span class="opt-bar" id="bar2"></span><span class="opt-vote-count" id="vc2"></span></div>
+    <div class="opt"><span class="opt-icon">●</span><span id="o2"></span><span class="opt-bar" id="bar2"></span><span class="opt-vote-count" id="vc3"></span></div>
     <div class="opt"><span class="opt-icon">■</span><span id="o3"></span><span class="opt-bar" id="bar3"></span><span class="opt-vote-count" id="vc3"></span></div>
   </div>
   <div class="btn-row" style="margin-top:14px">
@@ -261,10 +258,9 @@
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
   let currentTimeLimit = 20;
+  let totalQuestions = 1; // total de perguntas do quiz (atualizado em showQuestion)
   const horsePositions = {};
   const playerStats = {};
-
-  // Guarda a ordem do ranking ANTES de cada rodada para animar a reordenação
   let previousRankOrder = [];
 
   const PLAYER_EMOJIS = ['🦁','🐯','🦊','🐺','🐸','🦅','🐬','🦋','🐉','🦄','🐙','🦖','🐧','🦩','🐝','🦚','🐻','🦇','🦜','🐳','🐮','🐼','🦥','🐨'];
@@ -274,14 +270,12 @@
   const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄'];
 
   // ── Configuração da pista ──
-  const MIN_PCT       = 2;
-  const MAX_PCT       = 85;
-  const PCT_POR_PONTO = 0.0083;
-
-  // Altura de cada lane: 38px (lane-road) + 10px (margin-bottom) = 48px
+  const MIN_PCT = 2;
+  const MAX_PCT = 85;
+  // Pontuação máxima por rodada = 1000 pts
+  // PCT_POR_PONTO é calculado dinamicamente em buildRace para sempre escalar certo
   const LANE_HEIGHT = 48;
 
-  // ── Votos por opção ──
   const optionVotes = [0, 0, 0, 0];
 
   // ── WebSocket ──
@@ -321,6 +315,7 @@
       Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
       Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
       previousRankOrder = [];
+      totalQuestions = 1;
     }
     if (data.type === 'error') toast(data.msg);
   }
@@ -336,7 +331,6 @@
     document.getElementById('code-display').textContent = code;
   }
 
-  // ── Emoji fixo por nome ──
   function getEmoji(name) {
     if (!playerEmojiMap[name]) {
       const used = Object.values(playerEmojiMap).length;
@@ -345,7 +339,6 @@
     return playerEmojiMap[name];
   }
 
-  // ── Cavalo fixo por nome ──
   function getHorse(name) {
     if (!playerHorseMap[name]) {
       const used = Object.values(playerHorseMap).length;
@@ -376,51 +369,45 @@
     Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
     Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
     previousRankOrder = [];
+    totalQuestions = 1;
     toast(`✅ Código gerado: ${data.gameCode}`);
   }
 
-  function startGame() {
-    playCountdown(() => send({ type:'start_game' }));
-  }
-  function nextQ()       { send({ type:'next_question' }); }
-  function forceReveal() { send({ type:'reveal_answer' }); }
-  function resetGame()   { send({ type:'reset_game' }); }
+  function startGame() { playCountdown(() => send({ type:'start_game' })); }
+  function nextQ()      { send({ type:'next_question' }); }
+  function forceReveal(){ send({ type:'reveal_answer' }); }
+  function resetGame()  { send({ type:'reset_game' }); }
 
-  // ── Countdown 3-2-1 GO! ──
+  // ── Countdown ──
   function playCountdown(cb) {
     show('s-countdown');
     const el = document.getElementById('countdown-display');
     const steps = ['3','2','1','🚀 GO!'];
     let i = 0;
     playBeep(440, 0.15);
-    el.className = 'countdown-number';
+    el.className   = 'countdown-number';
     el.textContent = steps[0];
     const iv = setInterval(() => {
       i++;
-      if (i >= steps.length) {
-        clearInterval(iv);
-        cb();
-        return;
-      }
+      if (i >= steps.length) { clearInterval(iv); cb(); return; }
       el.style.animation = 'none';
       void el.offsetWidth;
-      el.textContent  = steps[i];
-      el.className    = i === steps.length - 1 ? 'countdown-go' : 'countdown-number';
+      el.textContent = steps[i];
+      el.className   = i === steps.length - 1 ? 'countdown-go' : 'countdown-number';
       el.style.animation = '';
       if (i < steps.length - 1) playBeep(440, 0.15);
       else playBeep(880, 0.3);
     }, 900);
   }
 
-  // ── Timer circular ──
+  // ── Timer ──
   const CIRCUMFERENCE = 2 * Math.PI * 34;
   function updateTimer(t) {
     const el   = document.getElementById('q-timer-text');
     const arc  = document.getElementById('timer-arc');
     const wrap = document.getElementById('timer-wrap');
     el.textContent = t;
-    const pct    = t / currentTimeLimit;
-    const offset = CIRCUMFERENCE * (1 - pct);
+    const offset = CIRCUMFERENCE * (1 - t / currentTimeLimit);
     arc.style.strokeDashoffset = offset;
     const urgent = t <= 5;
     wrap.classList.toggle('urgent', urgent);
@@ -434,6 +421,7 @@
     currentOptions   = d.options;
     currentCorrect   = d.correct;
     currentTimeLimit = d.timeLimit || 20;
+    totalQuestions   = d.total || 1;
     optionVotes.fill(0);
 
     document.getElementById('q-num').textContent = `${d.index + 1}/${d.total}`;
@@ -482,14 +470,14 @@
       document.getElementById('btn-next-race').style.display = 'none';
       document.getElementById('btn-next-race').textContent =
         data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
-      buildRace(data.ranking || [], data.roundEarned || {});
+      buildRace(data.ranking || [], data.roundEarned || {}, data.questionIndex ?? 0);
     }, 2200);
   }
 
   // ── Barras de votos ──
   function showVoteBars(data) {
     if (!data.ranking) return;
-    const total = data.ranking.length;
+    const total        = data.ranking.length;
     const correctCount = Object.values(data.roundEarned || {}).filter(v => v > 0).length;
     const wrongCount   = total - correctCount;
 
@@ -510,29 +498,34 @@
   }
 
   // ── Corrida ──
-  function buildRace(ranking, roundEarned) {
+  function buildRace(ranking, roundEarned, questionIndex) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
     if (!ranking.length) return;
 
     const DURATION = 3200;
 
-    // Ordena por score atual (depois da rodada)
+    // Ordena por score atual
     const sorted = [...ranking].sort((a, b) => b.score - a.score);
 
-    // Ordem anterior: se não existir ainda, usa a ordem atual (1ª rodada)
+    // ── Escala dinâmica da pista ──
+    // Pontuação máxima possível = 1000 pts * número total de perguntas
+    // Mas usamos o score máximo ATUAL + margem para não lotar a pista
+    const maxPossibleScore = 1000 * totalQuestions;
+    const pctPorPonto = (MAX_PCT - MIN_PCT) / maxPossibleScore;
+
     const prevOrder = previousRankOrder.length
       ? [...previousRankOrder]
       : sorted.map(p => p.name);
 
-    // ── Renderiza lanes na ORDEM ANTERIOR (posição visual inicial) ──
+    // Renderiza lanes na ORDEM ANTERIOR
     prevOrder.forEach((name) => {
       const p = sorted.find(x => x.name === name) || ranking.find(x => x.name === name);
       if (!p) return;
 
       const earned     = roundEarned[p.name] ?? 0;
       const scoreAntes = p.score - earned;
-      const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
+      const prevPct    = Math.min(MIN_PCT + scoreAntes * pctPorPonto, MAX_PCT);
       const key        = name.replace(/\s+/g, '_');
 
       const lane = document.createElement('div');
@@ -549,12 +542,12 @@
       container.appendChild(lane);
     });
 
-    // Jogadores novos que não estavam no prevOrder (caso alguém entre tarde)
+    // Jogadores novos que não estavam no prevOrder
     sorted.forEach(p => {
       if (!prevOrder.includes(p.name)) {
         const earned     = roundEarned[p.name] ?? 0;
         const scoreAntes = p.score - earned;
-        const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
+        const prevPct    = Math.min(MIN_PCT + scoreAntes * pctPorPonto, MAX_PCT);
         const key        = p.name.replace(/\s+/g, '_');
 
         const lane = document.createElement('div');
@@ -576,20 +569,19 @@
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
 
-      // ── FASE 1: Animação horizontal (cavalos avançam na pista) ──
+      // ── FASE 1: Animação horizontal ──
       sorted.forEach((p) => {
         const key       = p.name.replace(/\s+/g, '_');
         const hw        = document.getElementById(`hw-${key}`);
         const road      = document.getElementById(`road-${key}`);
         const earned    = roundEarned[p.name] ?? 0;
-        const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
+        const targetPct = Math.min(MIN_PCT + p.score * pctPorPonto, MAX_PCT);
 
         if (earned > 0) {
           hw.classList.remove('parado');
           hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
           hw.style.left       = `${targetPct}%`;
 
-          // +pts flutuando na posição de chegada
           setTimeout(() => {
             const float = document.createElement('div');
             float.className   = 'pts-float';
@@ -599,29 +591,22 @@
             setTimeout(() => float.remove(), 1900);
           }, DURATION * 0.55);
 
-          const scoreAntes = p.score - earned;
-          animateScore(key, scoreAntes, p.score, DURATION);
-
+          animateScore(key, p.score - earned, p.score, DURATION);
         } else {
-          const scoreAntes = p.score;
-          const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
+          const prevPct = Math.min(MIN_PCT + p.score * pctPorPonto, MAX_PCT);
           hw.style.transition = 'none';
           hw.style.left       = `${prevPct}%`;
           hw.classList.add('parado');
         }
 
-        horsePositions[p.name] = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
+        horsePositions[p.name] = Math.min(MIN_PCT + p.score * pctPorPonto, MAX_PCT);
       });
 
-      // ── FASE 2: Animação vertical (reordenação das lanes) ──
-      // Dispara após os cavalos chegarem
+      // ── FASE 2: Animação vertical ──
       setTimeout(() => {
-
-        // Monta mapa: nome → índice novo (posição final no ranking)
         const newIndexMap = {};
         sorted.forEach((p, i) => { newIndexMap[p.name] = i; });
 
-        // Monta mapa: nome → índice antigo (posição visual atual na tela)
         const currentOrder = [...prevOrder];
         sorted.forEach(p => { if (!currentOrder.includes(p.name)) currentOrder.push(p.name); });
 
@@ -642,22 +627,23 @@
             lane.style.transform  = `translateY(${delta}px)`;
             lane.style.zIndex     = delta < 0 ? '10' : '1';
 
-            // Flash colorido na lane: verde pra quem sobe, vermelho pra quem desce
             lane.classList.remove('lane-moving-up', 'lane-moving-down');
             void lane.offsetWidth;
             lane.classList.add(delta < 0 ? 'lane-moving-up' : 'lane-moving-down');
           }
         });
 
-        // ── FASE 3: Re-renderiza na ordem correta (sem animação) ──
+        // ── FASE 3: Rebuild na ordem correta ──
         const rebuildDelay = hasMovement ? 900 : 50;
         setTimeout(() => {
           container.innerHTML = '';
 
           sorted.forEach((p) => {
             const earned    = roundEarned[p.name] ?? 0;
-            const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
+            const targetPct = Math.min(MIN_PCT + p.score * pctPorPonto, MAX_PCT);
             const key       = p.name.replace(/\s+/g, '_');
+            const pos       = sorted.indexOf(p) + 1;
+            const badge     = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':`${pos}º`;
 
             const lane = document.createElement('div');
             lane.className = 'race-lane';
@@ -667,22 +653,21 @@
               <div class="lane-road" id="road-${key}">
                 <div class="horse-wrap ${earned === 0 ? 'parado' : ''}" id="hw-${key}" style="left:${targetPct}%;transition:none">
                   <span class="horse">${getHorse(p.name)}</span>
-                  <span class="pos-badge show" id="pos-${key}">${p === sorted[0] ? '🥇' : p === sorted[1] ? '🥈' : p === sorted[2] ? '🥉' : `${sorted.indexOf(p)+1}º`}</span>
+                  <span class="pos-badge show" id="pos-${key}">${badge}</span>
                 </div>
               </div>`;
             container.appendChild(lane);
           });
 
-          // Mostra botão de próxima pergunta
           document.getElementById('btn-next-race').style.display = 'inline-block';
 
         }, rebuildDelay);
 
-      }, DURATION + 400); // espera cavalos chegarem + margem
+      }, DURATION + 400);
 
     }));
 
-    // Atualiza ordem para a próxima rodada
+    // Salva ordem para próxima rodada
     previousRankOrder = sorted.map(p => p.name);
   }
 
@@ -702,7 +687,12 @@
 
   // ── Pódio Final ──
   function showFinal(ranking) {
+    // Para efeitos anteriores antes de mostrar o pódio
+    stopConfetti();
+    stopFireworks();
+
     show('s-final');
+
     const stage = document.getElementById('podium-stage');
     const rest  = document.getElementById('podium-rest');
     stage.innerHTML = rest.innerHTML = '';
@@ -742,9 +732,14 @@
     [2,0,1].forEach((bi, ti) => {
       setTimeout(() => {
         if (blocks[bi]) blocks[bi].classList.add('show');
-        if (bi === 1) { startConfetti(); startFireworks(); }
+        // Efeitos apenas quando o 1º lugar aparece (bi === 1 = centro = ouro)
+        if (bi === 1) {
+          startConfetti();
+          startFireworks();
+        }
       }, 400 + ti * 700);
     });
+
     rest.querySelectorAll('.rank-row').forEach((r, i) => {
       setTimeout(() => r.classList.add('show'), 400 + 3*700 + i*100);
     });
@@ -760,68 +755,69 @@
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
     pieces = Array.from({length:200}, () => ({
-      x:Math.random()*canvas.width, y:Math.random()*-canvas.height,
-      r:5+Math.random()*8, d:2+Math.random()*3,
-      color:`hsl(${Math.random()*360},90%,60%)`,
-      tilt:Math.random()*10-5, ts:0.08+Math.random()*0.18
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      r: 5 + Math.random() * 8,
+      d: 2 + Math.random() * 3,
+      color: `hsl(${Math.random()*360},90%,60%)`,
+      tilt: Math.random() * 10 - 5,
+      ts: 0.08 + Math.random() * 0.18
     }));
     (function draw() {
-      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       pieces.forEach(p => {
-        ctx.beginPath(); ctx.ellipse(p.x,p.y,p.r,p.r/2,p.tilt,0,Math.PI*2);
-        ctx.fillStyle = p.color; ctx.fill();
-        p.y+=p.d; p.tilt+=p.ts; p.x+=Math.sin(p.tilt)*1.3;
-        if(p.y>canvas.height){p.y=-10;p.x=Math.random()*canvas.width;}
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.r, p.r/2, p.tilt, 0, Math.PI*2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        p.y += p.d; p.tilt += p.ts; p.x += Math.sin(p.tilt) * 1.3;
+        if (p.y > canvas.height) { p.y = -10; p.x = Math.random() * canvas.width; }
       });
       animId = requestAnimationFrame(draw);
     })();
   }
 
   function stopConfetti() {
-    if(animId) cancelAnimationFrame(animId);
+    if (animId) cancelAnimationFrame(animId);
     animId = null;
     canvas.style.display = 'none';
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  // ── Fogos de Artifício ──
+  // ── Fogos ──
   const fwCanvas = document.getElementById('fireworks-canvas');
   const fwCtx    = fwCanvas.getContext('2d');
-  let fwParticles = [], fwAnimId = null;
+  let fwParticles = [], fwAnimId = null, fwStopTimeout = null;
 
   function startFireworks() {
+    if (fwStopTimeout) { clearTimeout(fwStopTimeout); fwStopTimeout = null; }
     fwCanvas.style.display = 'block';
     fwCanvas.width  = window.innerWidth;
     fwCanvas.height = window.innerHeight;
     fwParticles = [];
 
     let launches = 0;
-    const maxLaunches = 12;
     const launchInterval = setInterval(() => {
       launches++;
       launchFirework();
-      if (launches >= maxLaunches) clearInterval(launchInterval);
+      if (launches >= 12) clearInterval(launchInterval);
     }, 600);
 
     (function draw() {
       fwCtx.fillStyle = 'rgba(26,26,46,0.18)';
-      fwCtx.fillRect(0,0,fwCanvas.width,fwCanvas.height);
+      fwCtx.fillRect(0, 0, fwCanvas.width, fwCanvas.height);
       fwParticles = fwParticles.filter(p => p.alpha > 0.02);
       fwParticles.forEach(p => {
         fwCtx.beginPath();
         fwCtx.arc(p.x, p.y, p.r, 0, Math.PI*2);
         fwCtx.fillStyle = `hsla(${p.hue},90%,60%,${p.alpha})`;
         fwCtx.fill();
-        p.x     += p.vx;
-        p.y     += p.vy;
-        p.vy    += 0.06;
-        p.alpha -= 0.013;
-        p.r     *= 0.98;
+        p.x += p.vx; p.y += p.vy; p.vy += 0.06; p.alpha -= 0.013; p.r *= 0.98;
       });
       fwAnimId = requestAnimationFrame(draw);
     })();
 
-    setTimeout(() => stopFireworks(), 8000);
+    fwStopTimeout = setTimeout(() => stopFireworks(), 8000);
   }
 
   function launchFirework() {
@@ -831,14 +827,7 @@
     for (let i = 0; i < 80; i++) {
       const angle = (Math.PI * 2 / 80) * i;
       const speed = 2 + Math.random() * 4;
-      fwParticles.push({
-        x, y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        r: 2 + Math.random() * 3,
-        hue: hue + Math.random() * 40,
-        alpha: 1
-      });
+      fwParticles.push({ x, y, vx: Math.cos(angle)*speed, vy: Math.sin(angle)*speed, r: 2+Math.random()*3, hue: hue+Math.random()*40, alpha: 1 });
     }
   }
 
@@ -846,7 +835,8 @@
     if (fwAnimId) cancelAnimationFrame(fwAnimId);
     fwAnimId = null;
     fwCanvas.style.display = 'none';
-    fwCtx.clearRect(0,0,fwCanvas.width,fwCanvas.height);
+    fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+    if (fwStopTimeout) { clearTimeout(fwStopTimeout); fwStopTimeout = null; }
   }
 
   // ── Sons ──
@@ -857,17 +847,14 @@
   }
   function playBeep(freq, duration) {
     try {
-      const ac  = getAudioCtx();
-      const osc = ac.createOscillator();
+      const ac   = getAudioCtx();
+      const osc  = ac.createOscillator();
       const gain = ac.createGain();
-      osc.connect(gain);
-      gain.connect(ac.destination);
-      osc.frequency.value = freq;
-      osc.type = 'sine';
+      osc.connect(gain); gain.connect(ac.destination);
+      osc.frequency.value = freq; osc.type = 'sine';
       gain.gain.setValueAtTime(0.18, ac.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ac.currentTime + duration);
-      osc.start(ac.currentTime);
-      osc.stop(ac.currentTime + duration);
+      osc.start(ac.currentTime); osc.stop(ac.currentTime + duration);
     } catch(e) {}
   }
 
@@ -876,7 +863,7 @@
     const t = document.getElementById('toast');
     t.textContent   = msg;
     t.style.display = 'block';
-    setTimeout(() => t.style.display='none', 3000);
+    setTimeout(() => t.style.display = 'none', 3000);
   }
 
   connect();
