@@ -255,14 +255,22 @@
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
   let currentTimeLimit = 20;
-  const horsePositions = {};
-  // Acertos por jogador { name: { correct, total } }
+  const horsePositions = {}; // { name: pct atual na pista }
   const playerStats = {};
 
   const PLAYER_EMOJIS = ['🦁','🐯','🦊','🐺','🐸','🦅','🐬','🦋','🐉','🦄','🐙','🦖','🐧','🦩','🐝','🦚','🐻','🦇','🦜','🐳','🐮','🐼','🦥','🐨'];
   const playerEmojiMap = {};
 
   const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄'];
+
+  // ── Configuração da pista ──
+  // Pontuação por rodada: 500 (lento) a 1000 (rápido)
+  // Com 10 perguntas, score máximo teórico = 10.000 pts
+  // Queremos que 10.000 pts = ~83% da pista
+  // Então: PCT_POR_PONTO = 83 / 10000 = 0.0083
+  const MIN_PCT       = 2;    // posição inicial
+  const MAX_PCT       = 85;   // limite máximo da pista
+  const PCT_POR_PONTO = 0.0083; // % de pista por ponto
 
   // ── Votos por opção ──
   const optionVotes = [0, 0, 0, 0];
@@ -317,7 +325,7 @@
     document.getElementById('code-display').textContent = code;
   }
 
-  // ── Emoji por jogador ──
+  // ── Emoji fixo por nome ──
   function getEmoji(name) {
     if (!playerEmojiMap[name]) {
       const used = Object.values(playerEmojiMap).length;
@@ -383,7 +391,7 @@
   }
 
   // ── Timer circular ──
-  const CIRCUMFERENCE = 2 * Math.PI * 34; // ≈ 213.6
+  const CIRCUMFERENCE = 2 * Math.PI * 34;
   function updateTimer(t) {
     const el   = document.getElementById('q-timer-text');
     const arc  = document.getElementById('timer-arc');
@@ -411,7 +419,6 @@
     document.getElementById('q-text').textContent = d.question;
     document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
 
-    // Reset timer arc
     const arc = document.getElementById('timer-arc');
     arc.style.transition = 'none';
     arc.style.strokeDashoffset = '0';
@@ -433,14 +440,12 @@
 
   // ── Revelar ──
   function showReveal(data) {
-    // Atualiza stats de acerto
     data.ranking && data.ranking.forEach(p => {
       if (!playerStats[p.name]) playerStats[p.name] = { correct: 0, total: 0 };
       playerStats[p.name].total++;
       if ((data.roundEarned?.[p.name] ?? 0) > 0) playerStats[p.name].correct++;
     });
 
-    // Mostra barras de votos
     showVoteBars(data);
 
     document.querySelectorAll('.opt').forEach((o, i) => {
@@ -462,9 +467,6 @@
   // ── Barras de votos ──
   function showVoteBars(data) {
     if (!data.ranking) return;
-    const votes = [0,0,0,0];
-    // Reconstruir votos pelo roundEarned não é possível sem dados diretos
-    // Solução: o server não manda votos por opção, então exibimos apenas correct/wrong count
     const total = data.ranking.length;
     const correctCount = Object.values(data.roundEarned || {}).filter(v => v > 0).length;
     const wrongCount   = total - correctCount;
@@ -477,7 +479,6 @@
         bar.style.width = total > 0 ? `${(correctCount / total) * 100}%` : '0%';
         vc.textContent  = correctCount > 0 ? `${correctCount}` : '';
       } else {
-        // Distribui erros igualmente entre opções erradas (aproximação)
         const wrongOpts = document.querySelectorAll('.opt:not([style*="none"])').length - 1;
         const share = wrongOpts > 0 ? Math.round(wrongCount / wrongOpts) : 0;
         bar.style.width = total > 0 ? `${(share / total) * 100}%` : '0%';
@@ -487,24 +488,33 @@
   }
 
   // ── Corrida ──
+  // CORREÇÃO: avanço baseado em pontos absolutos, não relativo ao topScore
   function buildRace(ranking, roundEarned) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
     if (!ranking.length) return;
 
     const DURATION = 3200;
-    const MIN_PCT  = 2;
-    const MAX_PCT  = 58;
-    const topScore = Math.max(...ranking.map(p => p.score), 1);
 
-    ranking.forEach((p, i) => {
-      const savedPos = horsePositions[p.name] ?? MIN_PCT;
+    // Ordena por score para exibir do 1º ao último
+    const sorted = [...ranking].sort((a, b) => b.score - a.score);
+
+    sorted.forEach((p, i) => {
+      // Posição ATUAL na pista baseada no score total acumulado
+      const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
+
+      // Posição ANTERIOR (antes desta rodada)
+      const scoreAntes = p.score - (roundEarned[p.name] ?? 0);
+      const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
+
+      const earned = roundEarned[p.name] ?? 0;
+
       const lane = document.createElement('div');
       lane.className = 'race-lane';
       lane.innerHTML = `
-        <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${i}">${p.score - (roundEarned[p.name] ?? 0)}</span> pts</small></div>
+        <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${i}">${scoreAntes}</span> pts</small></div>
         <div class="lane-road" id="road-${i}">
-          <div class="horse-wrap parado" id="hw-${i}" style="left:${savedPos}%;transition:none">
+          <div class="horse-wrap ${earned > 0 ? '' : 'parado'}" id="hw-${i}" style="left:${prevPct}%;transition:none">
             <span class="horse">${HORSES[i % HORSES.length]}</span>
             <span class="pos-badge" id="pos-${i}"></span>
           </div>
@@ -515,46 +525,49 @@
     document.querySelector('.racetrack').scrollTop = 0;
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      ranking.forEach((p, i) => {
+      sorted.forEach((p, i) => {
         const hw     = document.getElementById(`hw-${i}`);
         const road   = document.getElementById(`road-${i}`);
-        const earned = roundEarned?.[p.name] ?? 0;
+        const earned = roundEarned[p.name] ?? 0;
+        const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
 
         if (earned > 0) {
-          const rawPct    = MIN_PCT + ((p.score / topScore) * (MAX_PCT - MIN_PCT));
-          const targetPct = Math.min(rawPct, MAX_PCT);
-          const finalPct  = Math.max(horsePositions[p.name] ?? MIN_PCT, targetPct);
-
           hw.classList.remove('parado');
 
           setTimeout(() => {
             hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
-            hw.style.left = `${finalPct}%`;
+            hw.style.left = `${targetPct}%`;
 
-            // Mostra +pts flutuando após metade da corrida
+            // +pts flutuando na posição de chegada
             setTimeout(() => {
               const float = document.createElement('div');
-              float.className = 'pts-float';
+              float.className   = 'pts-float';
               float.textContent = `+${earned} pts`;
-              float.style.left  = `${finalPct}%`;
+              float.style.left  = `${targetPct}%`;
               road.appendChild(float);
               setTimeout(() => float.remove(), 1900);
             }, DURATION * 0.55);
           }, i * 80);
 
-          animateScore(i, p.score - earned, p.score, DURATION);
-          horsePositions[p.name] = finalPct;
+          const scoreAntes = p.score - earned;
+          animateScore(i, scoreAntes, p.score, DURATION);
 
         } else {
+          // Parado: mantém posição atual na pista
+          const scoreAntes = p.score - earned;
+          const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
           hw.style.transition = 'none';
-          hw.style.left = `${horsePositions[p.name] ?? MIN_PCT}%`;
+          hw.style.left       = `${prevPct}%`;
           hw.classList.add('parado');
         }
+
+        // Salva posição atual para próxima rodada
+        horsePositions[p.name] = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
       });
 
-      const totalDelay = DURATION + ranking.length * 80 + 500;
+      const totalDelay = DURATION + sorted.length * 80 + 500;
       setTimeout(() => {
-        updatePositionBadges(ranking);
+        updatePositionBadges(sorted);
         document.getElementById('btn-next-race').style.display = 'inline-block';
       }, totalDelay);
     }));
@@ -574,10 +587,10 @@
     }, stepTime);
   }
 
-  function updatePositionBadges(ranking) {
-    const sorted = [...ranking].sort((a, b) => b.score - a.score);
-    ranking.forEach((p, i) => {
-      const pos   = sorted.findIndex(s => s.name === p.name) + 1;
+  function updatePositionBadges(sorted) {
+    // sorted já está ordenado por score desc
+    sorted.forEach((p, i) => {
+      const pos   = i + 1;
       const badge = document.getElementById(`pos-${i}`);
       if (badge) {
         badge.textContent = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':`${pos}º`;
@@ -624,7 +637,6 @@
       rest.appendChild(row);
     });
 
-    // Animação de entrada
     const blocks = stage.querySelectorAll('.podium-block');
     [2,0,1].forEach((bi, ti) => {
       setTimeout(() => {
