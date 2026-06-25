@@ -89,10 +89,20 @@
     }
     .race-lane:last-child{margin-bottom:0}
 
+    /* ✅ CORREÇÃO: label menor para não sobrepor o cavalo */
     .lane-label{
-      width:110px;font-size:.72rem;font-weight:600;
-      text-align:right;white-space:nowrap;overflow:hidden;
-      text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.4
+      width:100px;
+      font-size:.68rem;
+      font-weight:600;
+      text-align:right;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      flex-shrink:0;
+      color:#ccc;
+      line-height:1.4;
+      position:relative;
+      z-index:1;
     }
     .lane-label small{display:block;color:#f5a623;font-size:.65rem}
 
@@ -404,7 +414,7 @@
 
     const DURATION = 3200;
     const MIN_PCT  = 2;
-    const MAX_PCT  = 88;
+    const MAX_PCT  = 84; // ✅ Reduzido de 88 para 84 — dá folga ao emoji do cavalo
 
     // ✅ Líder sempre chega em MAX_PCT
     const topScore = Math.max(...ranking.map(p => p.score), 1);
@@ -417,7 +427,7 @@
       lane.innerHTML = `
         <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">${p.score - (roundEarned[p.name] ?? 0)}</span> pts</small></div>
         <div class="lane-road">
-          <div class="horse-wrap parado" id="hw-${i}" style="left:${savedPos}%;transition:none">
+          <div class="horse-wrap parado" id="hw-${i}" style="left:calc(${savedPos}% - 28px);transition:none">
             <span class="horse">${HORSES[i % HORSES.length]}</span>
             <span class="pos-badge" id="pos-${i}"></span>
           </div>
@@ -446,7 +456,8 @@
 
           setTimeout(() => {
             hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
-            hw.style.left       = `${finalPct}%`;
+            // ✅ CORREÇÃO PRINCIPAL: subtrai largura do cavalo (~28px) para não sair da pista
+            hw.style.left = `calc(${finalPct}% - 28px)`;
           }, i * 80);
 
           // ✅ Anima contador de pontos subindo
@@ -457,7 +468,7 @@
         } else {
           // ✅ Errou: fica parado e acinzentado
           hw.style.transition = 'none';
-          hw.style.left       = `${horsePositions[p.name] ?? MIN_PCT}%`;
+          hw.style.left       = `calc(${horsePositions[p.name] ?? MIN_PCT}% - 28px)`;
           hw.classList.add('parado');
         }
       });
