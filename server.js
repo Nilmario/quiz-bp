@@ -86,6 +86,8 @@ function startTimer(limit) {
   }, 1000);
 }
 
+// Substitua a função revealAnswer() no server.js
+
 function revealAnswer() {
   if (revealDone) return;
   revealDone = true;
@@ -94,28 +96,33 @@ function revealAnswer() {
   const q      = questions[qIndex];
   const isLast = qIndex >= questions.length - 1;
 
+  // ✅ Monta objeto { "NomeJogador": pontosGanhosNestaRodada }
+  const roundEarned = {};
+  Object.values(players).forEach(p => {
+    roundEarned[p.name] = p.lastEarned || 0;
+  });
+
   sendMonitor({
     type       : 'reveal',
     correct    : q.correct,
     correctText: q.options[q.correct],
     ranking    : ranking(),
+    roundEarned,          // ✅ novo campo
     isLast
   });
 
-  // ✅ envia pontos ganhos nesta rodada para cada jogador
   Object.values(players).forEach(p => {
-    const hit          = p.lastAnswer === q.correct;
-    const pointsGained = p.lastEarned || 0;
-
+    const hit = p.lastAnswer === q.correct;
     sendTo(p.ws, {
       type   : 'reveal',
       correct: q.correct,
       hit,
       score  : p.score,
-      points : pointsGained
+      points : p.lastEarned || 0
     });
   });
 }
+
 
 // ── WebSocket ───────────────────────────────────────────────────
 wss.on('connection', ws => {
