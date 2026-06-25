@@ -260,6 +260,7 @@
 
   const PLAYER_EMOJIS = ['🦁','🐯','🦊','🐺','🐸','🦅','🐬','🦋','🐉','🦄','🐙','🦖','🐧','🦩','🐝','🦚','🐻','🦇','🦜','🐳','🐮','🐼','🦥','🐨'];
   const playerEmojiMap = {};
+  const playerHorseMap = {};
 
   const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄'];
 
@@ -310,6 +311,7 @@
       Object.keys(horsePositions).forEach(k => delete horsePositions[k]);
       Object.keys(playerStats).forEach(k => delete playerStats[k]);
       Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
+      Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
     }
     if (data.type === 'error') toast(data.msg);
   }
@@ -333,7 +335,13 @@
     }
     return playerEmojiMap[name];
   }
-
+  function getHorse(name) {
+  if (!playerHorseMap[name]) {
+    const used = Object.values(playerHorseMap).length;
+    playerHorseMap[name] = HORSES[used % HORSES.length];
+  }
+  return playerHorseMap[name];
+}
   function renderPlayers(list) {
     totalPlayers = list.length;
     document.getElementById('player-count').textContent = `👥 ${list.length} jogador(es) conectado(s)`;
@@ -354,6 +362,7 @@
     Object.keys(horsePositions).forEach(k => delete horsePositions[k]);
     Object.keys(playerStats).forEach(k => delete playerStats[k]);
     Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
+    Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
     toast(`✅ Código gerado: ${data.gameCode}`);
   }
 
@@ -515,7 +524,7 @@
         <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${i}">${scoreAntes}</span> pts</small></div>
         <div class="lane-road" id="road-${i}">
           <div class="horse-wrap ${earned > 0 ? '' : 'parado'}" id="hw-${i}" style="left:${prevPct}%;transition:none">
-            <span class="horse">${HORSES[i % HORSES.length]}</span>
+            <span class="horse">${getHorse(p.name)}</span>
             <span class="pos-badge" id="pos-${i}"></span>
           </div>
         </div>`;
