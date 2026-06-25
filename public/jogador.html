@@ -2,236 +2,249 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Quiz B+P — Jogar</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Jogador — Quiz B+P</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
-    #app{width:100%;max-width:420px}
-    .screen{display:none}
+    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .screen{width:100%;max-width:480px;display:none;text-align:center}
     .screen.active{display:block}
 
-    /* JOIN */
-    #s-join{text-align:center}
-    #s-join h1{font-size:2.2rem;color:#e94560;margin-bottom:8px}
-    #s-join p{color:#aaa;margin-bottom:26px}
-    input{width:100%;padding:15px 20px;border-radius:50px;border:2px solid #0f3460;background:#16213e;color:#fff;font-size:1.15rem;text-align:center;margin-bottom:13px;outline:none;transition:border-color .3s}
+    h1{font-size:2.2rem;color:#e94560;margin-bottom:6px}
+    .sub{color:#aaa;font-size:.95rem;margin-bottom:24px}
+
+    .card{background:#16213e;border-radius:18px;padding:28px 24px;border:2px solid #0f3460;margin-bottom:16px}
+    input{width:100%;padding:14px 18px;border-radius:12px;border:2px solid #0f3460;background:#1a1a2e;color:#fff;font-size:1rem;margin-bottom:12px;outline:none;transition:border .2s;text-align:center;letter-spacing:2px}
     input:focus{border-color:#e94560}
+    input.name-input{letter-spacing:0;text-align:left}
+    .btn{width:100%;padding:15px;border-radius:50px;border:none;font-size:1rem;font-weight:700;cursor:pointer;transition:transform .2s,opacity .2s;margin-bottom:8px}
+    .btn:hover{transform:translateY(-2px)}
+    .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn.red{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff}
+    .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449);color:#fff}
 
-    /* WAIT */
-    #s-wait{text-align:center}
-    #s-wait h2{font-size:1.7rem;color:#f5a623;margin-bottom:10px}
-    #w-name{color:#2ecc71;font-size:1.15rem;margin-bottom:18px}
-    .spinner{width:54px;height:54px;border:5px solid #16213e;border-top-color:#e94560;border-radius:50%;animation:spin 1s linear infinite;margin:14px auto}
-    @keyframes spin{to{transform:rotate(360deg)}}
+    /* Código de entrada */
+    #s-code h2{color:#f5a623;font-size:1.6rem;margin-bottom:8px}
+    .code-info{color:#aaa;font-size:.9rem;margin-bottom:20px}
 
-    /* QUESTION */
-    #s-question{text-align:center}
-    #p-bar-wrap{height:8px;background:#16213e;border-radius:50px;margin-bottom:14px;overflow:hidden}
-    #p-bar{height:100%;background:#f5a623;border-radius:50px;transition:width 1s linear}
-    #p-qnum{color:#aaa;font-size:.9rem;margin-bottom:18px}
-    #p-btns{display:grid;grid-template-columns:1fr 1fr;gap:11px}
-    .pb{border:none;border-radius:15px;padding:0;cursor:pointer;color:#fff;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;font-weight:700;transition:transform .15s;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden}
-    .pb::after{content:'';position:absolute;inset:0;background:#fff;opacity:0;transition:opacity .2s}
-    .pb:active:not(:disabled)::after{opacity:.15}
-    .pb:nth-child(1){background:#e94560}
-    .pb:nth-child(2){background:#1a6fbf}
-    .pb:nth-child(3){background:#f5a623;color:#1a1a2e}
-    .pb:nth-child(4){background:#27ae60}
-    .pb .ic{font-size:1.9rem}
-    .pb .lb{font-size:.8rem;padding:0 8px;line-height:1.3;text-align:center}
-    .pb:disabled{opacity:.4;cursor:not-allowed}
-    .pb.selected{box-shadow:0 0 0 4px #fff;transform:scale(.96)}
+    /* Aguardando */
+    #s-wait .avatar{font-size:4rem;margin-bottom:12px}
+    #s-wait h2{color:#2ecc71;font-size:1.5rem;margin-bottom:8px}
+    .dots span{display:inline-block;width:10px;height:10px;border-radius:50%;background:#f5a623;margin:0 4px;animation:bounce .8s infinite alternate}
+    .dots span:nth-child(2){animation-delay:.2s}
+    .dots span:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-10px)}}
 
-    /* SENT */
-    #s-sent{text-align:center;padding:16px}
-    #sent-icon{font-size:5rem;margin-bottom:12px}
-    #sent-pts{font-size:2.6rem;font-weight:900;margin-bottom:6px}
-    #sent-msg{font-size:1.2rem;color:#aaa;margin-bottom:8px}
-    #sent-total{color:#f5a623;font-size:.95rem}
+    /* Pergunta */
+    #q-progress{background:#0f3460;border-radius:50px;height:8px;margin-bottom:16px;overflow:hidden}
+    #q-progress-bar{height:100%;background:linear-gradient(90deg,#e94560,#f5a623);border-radius:50px;transition:width .4s}
+    #q-counter{color:#aaa;font-size:.85rem;margin-bottom:10px}
+    #q-timer-player{font-size:2.8rem;font-weight:900;color:#f5a623;margin-bottom:16px}
+    #q-timer-player.urgent{color:#e94560;animation:pulse .5s infinite alternate}
+    @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.08)}}
+    #q-text-player{background:#16213e;border-radius:14px;padding:22px;font-size:1.15rem;font-weight:600;line-height:1.5;margin-bottom:18px;border:2px solid #0f3460;min-height:90px;display:flex;align-items:center;justify-content:center}
+    .opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .opt-btn{border:none;border-radius:14px;padding:20px 10px;font-size:1rem;font-weight:700;cursor:pointer;transition:all .3s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .opt-btn:nth-child(1){background:#e94560}
+    .opt-btn:nth-child(2){background:#1a6fbf}
+    .opt-btn:nth-child(3){background:#f5a623;color:#1a1a2e}
+    .opt-btn:nth-child(4){background:#27ae60}
+    .opt-btn:disabled{opacity:.35;cursor:not-allowed}
+    .opt-btn.selected{box-shadow:0 0 0 4px #fff;transform:scale(1.04)}
+    .opt-btn.correct{box-shadow:0 0 24px #2ecc71;border:3px solid #2ecc71}
+    .opt-btn.wrong{opacity:.22}
+    .opt-icon-big{font-size:1.6rem}
 
-    /* FINAL */
-    #s-final{text-align:center}
-    #f-emoji{font-size:4.5rem;margin-bottom:10px}
-    #f-title{font-size:1.8rem;font-weight:bold;color:#f5a623;margin-bottom:8px}
-    #f-score{font-size:2.8rem;font-weight:900;color:#2ecc71;margin-bottom:14px}
-    #f-msg{color:#aaa;font-size:.95rem}
+    /* Resultado da rodada */
+    #s-result .result-icon{font-size:5rem;margin-bottom:10px}
+    #s-result h2{font-size:1.8rem;margin-bottom:8px}
+    #s-result .pts{font-size:1.1rem;color:#f5a623;font-weight:700}
 
-    /* ERROR */
-    #s-error{text-align:center;padding:20px}
-    #s-error .err-icon{font-size:4rem;margin-bottom:14px}
-    #s-error p{color:#aaa;font-size:1.1rem;margin-bottom:20px}
+    /* Game Over */
+    #s-gameover h2{font-size:2rem;color:#f5a623;margin-bottom:16px}
+    .rank-item{display:flex;align-items:center;gap:12px;background:#16213e;border-radius:12px;padding:12px 16px;margin-bottom:8px}
+    .rank-item .pos{font-size:1.4rem;width:36px}
+    .rank-item .rname{flex:1;font-size:1rem;font-weight:600}
+    .rank-item .rpts{color:#2ecc71;font-weight:700}
+    .rank-item.me{border:2px solid #f5a623}
 
-    .btn{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff;border:none;border-radius:50px;padding:14px 36px;font-size:1rem;font-weight:bold;cursor:pointer;margin-top:16px;display:inline-block;width:100%}
+    #toast-p{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:10px 24px;border-radius:30px;font-weight:600;display:none;z-index:999;font-size:.9rem}
   </style>
 </head>
 <body>
-<div id="app">
 
-  <div class="screen active" id="s-join">
-    <h1>🎯 Quiz B+P</h1>
-    <p>Digite seu nome para entrar na partida</p>
-    <input type="text" id="inp" placeholder="Seu nome..." maxlength="20"
-           onkeydown="if(event.key==='Enter')join()"/>
-    <button class="btn" onclick="join()">✅ Entrar no Jogo</button>
+<!-- ══ INSERIR CÓDIGO ══ -->
+<div class="screen active" id="s-code">
+  <h1>🎯 Quiz B+P</h1>
+  <p class="sub">Digite o código da partida para entrar</p>
+  <div class="card">
+    <h2 style="color:#f5a623;margin-bottom:16px">🔑 Código da Partida</h2>
+    <input id="inp-code" maxlength="6" placeholder="EX: A3F9C2" oninput="this.value=this.value.toUpperCase()"/>
+    <button class="btn red" onclick="validateCode()">Verificar Código</button>
   </div>
-
-  <div class="screen" id="s-wait">
-    <h2>Você entrou! 🎉</h2>
-    <div id="w-name"></div>
-    <div class="spinner"></div>
-    <p style="color:#aaa;font-size:.95rem">Aguarde o quiz começar...</p>
-  </div>
-
-  <div class="screen" id="s-question">
-    <div id="p-bar-wrap"><div id="p-bar" style="width:100%"></div></div>
-    <div id="p-qnum">Pergunta 1 de 25</div>
-    <div id="p-btns">
-      <button class="pb" onclick="answer(0)"><span class="ic">▲</span><span class="lb" id="l0"></span></button>
-      <button class="pb" onclick="answer(1)"><span class="ic">◆</span><span class="lb" id="l1"></span></button>
-      <button class="pb" onclick="answer(2)"><span class="ic">●</span><span class="lb" id="l2"></span></button>
-      <button class="pb" onclick="answer(3)"><span class="ic">■</span><span class="lb" id="l3"></span></button>
-    </div>
-  </div>
-
-  <div class="screen" id="s-sent">
-    <div id="sent-icon">⏳</div>
-    <div id="sent-pts"></div>
-    <div id="sent-msg">Aguarde o monitor...</div>
-    <div id="sent-total"></div>
-  </div>
-
-  <div class="screen" id="s-final">
-    <div id="f-emoji">🏆</div>
-    <div id="f-title">Fim de Jogo!</div>
-    <div id="f-score"></div>
-    <div id="f-msg">Confira o placar no monitor!</div>
-    <button class="btn" onclick="location.reload()">🔄 Jogar de Novo</button>
-  </div>
-
-  <div class="screen" id="s-error">
-    <div class="err-icon">⛔</div>
-    <p id="err-msg">Ocorreu um erro.</p>
-    <button class="btn" onclick="location.reload()">↩️ Tentar Novamente</button>
-  </div>
-
 </div>
+
+<!-- ══ INSERIR NOME ══ -->
+<div class="screen" id="s-join">
+  <h1>🎯 Quiz B+P</h1>
+  <p class="sub">Código válido! Agora escolha seu nome</p>
+  <div class="card">
+    <input class="name-input" id="inp-name" maxlength="24" placeholder="Seu nome..." />
+    <button class="btn red" onclick="joinGame()">🚀 Entrar na Partida</button>
+  </div>
+</div>
+
+<!-- ══ AGUARDANDO ══ -->
+<div class="screen" id="s-wait">
+  <div class="avatar">🎮</div>
+  <h2 id="wait-name">Pronto!</h2>
+  <p style="color:#aaa;margin-bottom:20px">Aguardando o quiz começar...</p>
+  <div class="dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- ══ PERGUNTA ══ -->
+<div class="screen" id="s-question-p">
+  <div id="q-progress"><div id="q-progress-bar" style="width:0%"></div></div>
+  <div id="q-counter">Pergunta 1/10</div>
+  <div id="q-timer-player">20</div>
+  <div id="q-text-player">...</div>
+  <div class="opt-grid" id="opt-grid"></div>
+</div>
+
+<!-- ══ RESULTADO RODADA ══ -->
+<div class="screen" id="s-result">
+  <div class="result-icon" id="result-icon">🎉</div>
+  <h2 id="result-title">Correto!</h2>
+  <p id="result-sub" style="color:#aaa;margin-bottom:10px"></p>
+  <div class="pts" id="result-pts"></div>
+  <p style="color:#555;margin-top:20px;font-size:.85rem">Aguardando próxima pergunta...</p>
+</div>
+
+<!-- ══ GAME OVER ══ -->
+<div class="screen" id="s-gameover">
+  <h2>🏆 Resultado Final</h2>
+  <div id="gameover-list"></div>
+</div>
+
+<div id="toast-p"></div>
 
 <script>
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const wsUrl = `${proto}://${location.host}`;
 
-  let ws, myName = '', myScore = 0, timeLeft = 20, hasAnswered = false;
+  let ws, myName = '', myCode = '', myScore = 0;
+  const ICONS = ['▲','◆','●','■'];
+  const COLORS = ['#e94560','#1a6fbf','#f5a623','#27ae60'];
 
+  function connect() {
+    ws = new WebSocket(wsUrl);
+    ws.onmessage = e => handle(JSON.parse(e.data));
+    ws.onclose   = () => setTimeout(connect, 2000);
+  }
+
+  function handle(data) {
+    if (data.type === 'code_ok')    { show('s-join'); }
+    if (data.type === 'code_invalid') { toastP('❌ Código inválido ou partida não encontrada!'); }
+    if (data.type === 'joined')     { myName = data.name; show('s-wait'); document.getElementById('wait-name').textContent = `👋 ${myName}`; }
+    if (data.type === 'question')   { showQuestion(data); }
+    if (data.type === 'tick')       { updateTimerP(data.timeLeft); }
+    if (data.type === 'reveal')     { showResult(data); }
+    if (data.type === 'game_over')  { showGameOver(data.ranking); }
+    if (data.type === 'kicked')     { toastP('🔄 A sala foi reiniciada.'); setTimeout(() => location.reload(), 2000); }
+    if (data.type === 'error')      { toastP(data.msg); }
+  }
+
+  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
   function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
   }
 
-  function join() {
-    const name = document.getElementById('inp').value.trim();
-    if (!name) { alert('Digite seu nome!'); return; }
-    myName = name;
-
-    ws = new WebSocket(wsUrl);
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'join', name: myName }));
-    ws.onmessage = e => handle(JSON.parse(e.data));
-    ws.onclose = () => {
-      if (document.getElementById('s-final').classList.contains('active')) return;
-      setTimeout(() => location.reload(), 3000);
-    };
-
-    document.getElementById('w-name').textContent = `👤 ${myName}`;
-    show('s-wait');
+  function validateCode() {
+    const code = document.getElementById('inp-code').value.trim();
+    if (code.length < 4) { toastP('Digite o código completo!'); return; }
+    myCode = code;
+    send({ type:'validate_code', code });
   }
 
-  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
-
-  function handle(data) {
-    if (data.type === 'joined') { /* ok */ }
-
-    if (data.type === 'error') {
-      document.getElementById('err-msg').textContent = data.msg;
-      show('s-error');
-    }
-
-    if (data.type === 'question') {
-      hasAnswered = false;
-      timeLeft = data.timeLimit || 20;
-      loadQ(data);
-    }
-
-    if (data.type === 'answer_result') {
-      myScore = data.score;
-      showSent(data);
-    }
-
-    if (data.type === 'reveal') {
-      document.getElementById('sent-msg').textContent = 'Aguarde a próxima pergunta...';
-    }
-
-    if (data.type === 'reset') location.reload();
-
-    if (data.type === 'final') {
-      show('s-final');
-      document.getElementById('f-score').textContent = `⭐ ${myScore} pts`;
-      let emoji = '😢';
-      if (myScore > 18000) emoji = '🏆';
-      else if (myScore > 12000) emoji = '🎉';
-      else if (myScore > 7000) emoji = '👍';
-      else if (myScore > 3000) emoji = '😅';
-      document.getElementById('f-emoji').textContent = emoji;
-    }
+  function joinGame() {
+    const name = document.getElementById('inp-name').value.trim();
+    if (!name) { toastP('Digite seu nome!'); return; }
+    send({ type:'join', name, code: myCode });
   }
 
-  function loadQ(data) {
-    show('s-question');
-    document.getElementById('p-qnum').textContent = `Pergunta ${data.index + 1} de ${data.total}`;
+  function showQuestion(d) {
+    myScore = 0;
+    show('s-question-p');
+    document.getElementById('q-counter').textContent     = `Pergunta ${d.index+1}/${d.total}`;
+    document.getElementById('q-progress-bar').style.width= `${(d.index/d.total)*100}%`;
+    updateTimerP(d.timeLimit);
 
-    const btns = document.querySelectorAll('.pb');
-    btns.forEach((b, i) => {
-      b.disabled = false;
-      b.className = 'pb';
-      const txt = data.options[i] || '';
-      document.getElementById(`l${i}`).textContent = txt;
-      b.style.display = txt ? 'flex' : 'none';
+    const grid = document.getElementById('opt-grid');
+    grid.innerHTML = '';
+    d.options.forEach((_, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.innerHTML = `<span class="opt-icon-big">${ICONS[i]}</span><span id="opt-txt-${i}">...</span>`;
+      btn.onclick   = () => answer(i);
+      grid.appendChild(btn);
     });
-
-    // Timer visual
-    const bar = document.getElementById('p-bar');
-    bar.style.transition = 'none';
-    bar.style.width = '100%';
-    setTimeout(() => {
-      bar.style.transition = `width ${data.timeLimit}s linear`;
-      bar.style.width = '0%';
-    }, 80);
   }
 
-  function answer(idx) {
-    if (hasAnswered) return;
-    hasAnswered = true;
-    document.querySelectorAll('.pb').forEach((b, i) => {
+  // O servidor envia só os índices das opções (sem texto)
+  // Texto vem via 'question' mas aqui tratamos genérico
+  function updateTimerP(t) {
+    const el = document.getElementById('q-timer-player');
+    if (el) { el.textContent = t; el.className = t <= 5 ? 'urgent' : ''; }
+  }
+
+  function answer(opt) {
+    send({ type:'answer', option: opt });
+    document.querySelectorAll('.opt-btn').forEach((b,i) => {
       b.disabled = true;
-      if (i === idx) b.classList.add('selected');
+      if (i === opt) b.classList.add('selected');
     });
-    send({ type: 'answer', answer: idx, timeLeft });
   }
 
-  function showSent(data) {
-    show('s-sent');
-    if (data.correct) {
-      document.getElementById('sent-icon').textContent = '✅';
-      document.getElementById('sent-pts').textContent = `+${data.points} pts`;
-      document.getElementById('sent-pts').style.color = '#2ecc71';
-      document.getElementById('sent-msg').textContent = 'Correto! 🎉';
-    } else {
-      document.getElementById('sent-icon').textContent = '❌';
-      document.getElementById('sent-pts').textContent = '+0 pts';
-      document.getElementById('sent-pts').style.color = '#e94560';
-      document.getElementById('sent-msg').textContent = 'Errou! 😅';
-    }
-    document.getElementById('sent-total').textContent = `Total: ⭐ ${myScore} pts`;
+  function showResult(data) {
+    show('s-result');
+    myScore = data.score || 0;
+    const hit = data.hit;
+    document.getElementById('result-icon').textContent  = hit ? '🎉' : '😢';
+    document.getElementById('result-title').textContent = hit ? 'Correto!' : 'Errou...';
+    document.getElementById('result-sub').textContent   = hit ? 'Muito bem!' : 'Não foi dessa vez!';
+    document.getElementById('result-pts').textContent   = `⭐ Total: ${myScore} pts`;
   }
+
+  function showGameOver(ranking) {
+    show('s-gameover');
+    const list = document.getElementById('gameover-list');
+    list.innerHTML = '';
+    const sorted = [...ranking].sort((a,b) => b.score - a.score);
+    const medals  = ['🥇','🥈','🥉'];
+    sorted.forEach((p,i) => {
+      const div = document.createElement('div');
+      div.className = 'rank-item' + (p.name === myName ? ' me' : '');
+      div.innerHTML = `
+        <div class="pos">${medals[i] || `${i+1}º`}</div>
+        <div class="rname">${p.name}${p.name===myName?' (você)':''}</div>
+        <div class="rpts">⭐ ${p.score}</div>`;
+      list.appendChild(div);
+    });
+  }
+
+  function toastP(msg) {
+    const t = document.getElementById('toast-p');
+    t.textContent   = msg;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+  }
+
+  // Enter nos inputs
+  document.getElementById('inp-code').addEventListener('keydown', e => { if(e.key==='Enter') validateCode(); });
+  document.getElementById('inp-name').addEventListener('keydown', e => { if(e.key==='Enter') joinGame(); });
+
+  connect();
 </script>
 </body>
 </html>
