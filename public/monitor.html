@@ -84,7 +84,7 @@
     .racetrack::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);pointer-events:none}
     .finish-line{position:sticky;right:0;top:0;bottom:0;width:14px;float:right;height:100%;background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);border-radius:4px;opacity:.7;z-index:2;pointer-events:none}
 
-    .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+    .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:10px;will-change:transform}
     .lane-label{width:100px;font-size:.68rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.4;position:relative;z-index:1}
     .lane-label small{display:block;color:#f5a623;font-size:.65rem}
     .lane-road{flex:1;position:relative;height:38px;background:#16213e;border-radius:30px;overflow:hidden}
@@ -99,6 +99,12 @@
     /* Pontos flutuantes +pts */
     .pts-float{position:absolute;top:-8px;font-size:.75rem;font-weight:900;color:#2ecc71;text-shadow:0 0 8px #2ecc71;animation:floatUp 1.8s ease forwards;pointer-events:none;z-index:10;white-space:nowrap}
     @keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-36px)}}
+
+    /* Animação de subida/descida de lane */
+    @keyframes laneUp{0%{background:rgba(46,204,113,.0)}50%{background:rgba(46,204,113,.12)}100%{background:rgba(46,204,113,.0)}}
+    @keyframes laneDown{0%{background:rgba(233,69,96,.0)}50%{background:rgba(233,69,96,.10)}100%{background:rgba(233,69,96,.0)}}
+    .lane-moving-up{animation:laneUp 0.8s ease}
+    .lane-moving-down{animation:laneDown 0.8s ease}
 
     /* ── PÓDIO FINAL ── */
     #s-final{text-align:center}
@@ -255,8 +261,11 @@
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
   let currentTimeLimit = 20;
-  const horsePositions = {}; // { name: pct atual na pista }
+  const horsePositions = {};
   const playerStats = {};
+
+  // Guarda a ordem do ranking ANTES de cada rodada para animar a reordenação
+  let previousRankOrder = [];
 
   const PLAYER_EMOJIS = ['🦁','🐯','🦊','🐺','🐸','🦅','🐬','🦋','🐉','🦄','🐙','🦖','🐧','🦩','🐝','🦚','🐻','🦇','🦜','🐳','🐮','🐼','🦥','🐨'];
   const playerEmojiMap = {};
@@ -265,13 +274,12 @@
   const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄'];
 
   // ── Configuração da pista ──
-  // Pontuação por rodada: 500 (lento) a 1000 (rápido)
-  // Com 10 perguntas, score máximo teórico = 10.000 pts
-  // Queremos que 10.000 pts = ~83% da pista
-  // Então: PCT_POR_PONTO = 83 / 10000 = 0.0083
-  const MIN_PCT       = 2;    // posição inicial
-  const MAX_PCT       = 85;   // limite máximo da pista
-  const PCT_POR_PONTO = 0.0083; // % de pista por ponto
+  const MIN_PCT       = 2;
+  const MAX_PCT       = 85;
+  const PCT_POR_PONTO = 0.0083;
+
+  // Altura de cada lane: 38px (lane-road) + 10px (margin-bottom) = 48px
+  const LANE_HEIGHT = 48;
 
   // ── Votos por opção ──
   const optionVotes = [0, 0, 0, 0];
@@ -312,6 +320,7 @@
       Object.keys(playerStats).forEach(k => delete playerStats[k]);
       Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
       Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
+      previousRankOrder = [];
     }
     if (data.type === 'error') toast(data.msg);
   }
@@ -335,13 +344,16 @@
     }
     return playerEmojiMap[name];
   }
+
+  // ── Cavalo fixo por nome ──
   function getHorse(name) {
-  if (!playerHorseMap[name]) {
-    const used = Object.values(playerHorseMap).length;
-    playerHorseMap[name] = HORSES[used % HORSES.length];
+    if (!playerHorseMap[name]) {
+      const used = Object.values(playerHorseMap).length;
+      playerHorseMap[name] = HORSES[used % HORSES.length];
+    }
+    return playerHorseMap[name];
   }
-  return playerHorseMap[name];
-}
+
   function renderPlayers(list) {
     totalPlayers = list.length;
     document.getElementById('player-count').textContent = `👥 ${list.length} jogador(es) conectado(s)`;
@@ -363,6 +375,7 @@
     Object.keys(playerStats).forEach(k => delete playerStats[k]);
     Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
     Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
+    previousRankOrder = [];
     toast(`✅ Código gerado: ${data.gameCode}`);
   }
 
@@ -497,7 +510,6 @@
   }
 
   // ── Corrida ──
-  // CORREÇÃO: avanço baseado em pontos absolutos, não relativo ao topScore
   function buildRace(ranking, roundEarned) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
@@ -505,85 +517,177 @@
 
     const DURATION = 3200;
 
-    // Ordena por score para exibir do 1º ao último
+    // Ordena por score atual (depois da rodada)
     const sorted = [...ranking].sort((a, b) => b.score - a.score);
 
-    sorted.forEach((p, i) => {
-      // Posição ATUAL na pista baseada no score total acumulado
-      const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
+    // Ordem anterior: se não existir ainda, usa a ordem atual (1ª rodada)
+    const prevOrder = previousRankOrder.length
+      ? [...previousRankOrder]
+      : sorted.map(p => p.name);
 
-      // Posição ANTERIOR (antes desta rodada)
-      const scoreAntes = p.score - (roundEarned[p.name] ?? 0);
+    // ── Renderiza lanes na ORDEM ANTERIOR (posição visual inicial) ──
+    prevOrder.forEach((name) => {
+      const p = sorted.find(x => x.name === name) || ranking.find(x => x.name === name);
+      if (!p) return;
+
+      const earned     = roundEarned[p.name] ?? 0;
+      const scoreAntes = p.score - earned;
       const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
-
-      const earned = roundEarned[p.name] ?? 0;
+      const key        = name.replace(/\s+/g, '_');
 
       const lane = document.createElement('div');
       lane.className = 'race-lane';
+      lane.id        = `lane-${key}`;
       lane.innerHTML = `
-        <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${i}">${scoreAntes}</span> pts</small></div>
-        <div class="lane-road" id="road-${i}">
-          <div class="horse-wrap ${earned > 0 ? '' : 'parado'}" id="hw-${i}" style="left:${prevPct}%;transition:none">
+        <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${key}">${scoreAntes}</span> pts</small></div>
+        <div class="lane-road" id="road-${key}">
+          <div class="horse-wrap ${earned > 0 ? '' : 'parado'}" id="hw-${key}" style="left:${prevPct}%;transition:none">
             <span class="horse">${getHorse(p.name)}</span>
-            <span class="pos-badge" id="pos-${i}"></span>
+            <span class="pos-badge" id="pos-${key}"></span>
           </div>
         </div>`;
       container.appendChild(lane);
     });
 
+    // Jogadores novos que não estavam no prevOrder (caso alguém entre tarde)
+    sorted.forEach(p => {
+      if (!prevOrder.includes(p.name)) {
+        const earned     = roundEarned[p.name] ?? 0;
+        const scoreAntes = p.score - earned;
+        const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
+        const key        = p.name.replace(/\s+/g, '_');
+
+        const lane = document.createElement('div');
+        lane.className = 'race-lane';
+        lane.id        = `lane-${key}`;
+        lane.innerHTML = `
+          <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${key}">${scoreAntes}</span> pts</small></div>
+          <div class="lane-road" id="road-${key}">
+            <div class="horse-wrap ${earned > 0 ? '' : 'parado'}" id="hw-${key}" style="left:${prevPct}%;transition:none">
+              <span class="horse">${getHorse(p.name)}</span>
+              <span class="pos-badge" id="pos-${key}"></span>
+            </div>
+          </div>`;
+        container.appendChild(lane);
+      }
+    });
+
     document.querySelector('.racetrack').scrollTop = 0;
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      sorted.forEach((p, i) => {
-        const hw     = document.getElementById(`hw-${i}`);
-        const road   = document.getElementById(`road-${i}`);
-        const earned = roundEarned[p.name] ?? 0;
+
+      // ── FASE 1: Animação horizontal (cavalos avançam na pista) ──
+      sorted.forEach((p) => {
+        const key       = p.name.replace(/\s+/g, '_');
+        const hw        = document.getElementById(`hw-${key}`);
+        const road      = document.getElementById(`road-${key}`);
+        const earned    = roundEarned[p.name] ?? 0;
         const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
 
         if (earned > 0) {
           hw.classList.remove('parado');
+          hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
+          hw.style.left       = `${targetPct}%`;
 
+          // +pts flutuando na posição de chegada
           setTimeout(() => {
-            hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
-            hw.style.left = `${targetPct}%`;
-
-            // +pts flutuando na posição de chegada
-            setTimeout(() => {
-              const float = document.createElement('div');
-              float.className   = 'pts-float';
-              float.textContent = `+${earned} pts`;
-              float.style.left  = `${targetPct}%`;
-              road.appendChild(float);
-              setTimeout(() => float.remove(), 1900);
-            }, DURATION * 0.55);
-          }, i * 80);
+            const float = document.createElement('div');
+            float.className   = 'pts-float';
+            float.textContent = `+${earned} pts`;
+            float.style.left  = `${targetPct}%`;
+            road.appendChild(float);
+            setTimeout(() => float.remove(), 1900);
+          }, DURATION * 0.55);
 
           const scoreAntes = p.score - earned;
-          animateScore(i, scoreAntes, p.score, DURATION);
+          animateScore(key, scoreAntes, p.score, DURATION);
 
         } else {
-          // Parado: mantém posição atual na pista
-          const scoreAntes = p.score - earned;
+          const scoreAntes = p.score;
           const prevPct    = Math.min(MIN_PCT + scoreAntes * PCT_POR_PONTO, MAX_PCT);
           hw.style.transition = 'none';
           hw.style.left       = `${prevPct}%`;
           hw.classList.add('parado');
         }
 
-        // Salva posição atual para próxima rodada
         horsePositions[p.name] = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
       });
 
-      const totalDelay = DURATION + sorted.length * 80 + 500;
+      // ── FASE 2: Animação vertical (reordenação das lanes) ──
+      // Dispara após os cavalos chegarem
       setTimeout(() => {
-        updatePositionBadges(sorted);
-        document.getElementById('btn-next-race').style.display = 'inline-block';
-      }, totalDelay);
+
+        // Monta mapa: nome → índice novo (posição final no ranking)
+        const newIndexMap = {};
+        sorted.forEach((p, i) => { newIndexMap[p.name] = i; });
+
+        // Monta mapa: nome → índice antigo (posição visual atual na tela)
+        const currentOrder = [...prevOrder];
+        sorted.forEach(p => { if (!currentOrder.includes(p.name)) currentOrder.push(p.name); });
+
+        let hasMovement = false;
+
+        currentOrder.forEach((name) => {
+          const key      = name.replace(/\s+/g, '_');
+          const lane     = document.getElementById(`lane-${key}`);
+          if (!lane) return;
+
+          const oldIndex = currentOrder.indexOf(name);
+          const newIndex = newIndexMap[name] ?? oldIndex;
+          const delta    = (newIndex - oldIndex) * LANE_HEIGHT;
+
+          if (delta !== 0) {
+            hasMovement = true;
+            lane.style.transition = `transform 0.75s cubic-bezier(0.34,1.56,0.64,1)`;
+            lane.style.transform  = `translateY(${delta}px)`;
+            lane.style.zIndex     = delta < 0 ? '10' : '1';
+
+            // Flash colorido na lane: verde pra quem sobe, vermelho pra quem desce
+            lane.classList.remove('lane-moving-up', 'lane-moving-down');
+            void lane.offsetWidth;
+            lane.classList.add(delta < 0 ? 'lane-moving-up' : 'lane-moving-down');
+          }
+        });
+
+        // ── FASE 3: Re-renderiza na ordem correta (sem animação) ──
+        const rebuildDelay = hasMovement ? 900 : 50;
+        setTimeout(() => {
+          container.innerHTML = '';
+
+          sorted.forEach((p) => {
+            const earned    = roundEarned[p.name] ?? 0;
+            const targetPct = Math.min(MIN_PCT + p.score * PCT_POR_PONTO, MAX_PCT);
+            const key       = p.name.replace(/\s+/g, '_');
+
+            const lane = document.createElement('div');
+            lane.className = 'race-lane';
+            lane.id        = `lane-${key}`;
+            lane.innerHTML = `
+              <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${key}">${p.score}</span> pts</small></div>
+              <div class="lane-road" id="road-${key}">
+                <div class="horse-wrap ${earned === 0 ? 'parado' : ''}" id="hw-${key}" style="left:${targetPct}%;transition:none">
+                  <span class="horse">${getHorse(p.name)}</span>
+                  <span class="pos-badge show" id="pos-${key}">${p === sorted[0] ? '🥇' : p === sorted[1] ? '🥈' : p === sorted[2] ? '🥉' : `${sorted.indexOf(p)+1}º`}</span>
+                </div>
+              </div>`;
+            container.appendChild(lane);
+          });
+
+          // Mostra botão de próxima pergunta
+          document.getElementById('btn-next-race').style.display = 'inline-block';
+
+        }, rebuildDelay);
+
+      }, DURATION + 400); // espera cavalos chegarem + margem
+
     }));
+
+    // Atualiza ordem para a próxima rodada
+    previousRankOrder = sorted.map(p => p.name);
   }
 
-  function animateScore(index, from, to, duration) {
-    const el = document.getElementById(`score-count-${index}`);
+  function animateScore(key, from, to, duration) {
+    const el = document.getElementById(`score-count-${key}`);
     if (!el) return;
     const steps    = 40;
     const stepTime = duration / steps;
@@ -594,18 +698,6 @@
       el.textContent = Math.round(from + (diff * step / steps));
       if (step >= steps) { el.textContent = to; clearInterval(interval); }
     }, stepTime);
-  }
-
-  function updatePositionBadges(sorted) {
-    // sorted já está ordenado por score desc
-    sorted.forEach((p, i) => {
-      const pos   = i + 1;
-      const badge = document.getElementById(`pos-${i}`);
-      if (badge) {
-        badge.textContent = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':`${pos}º`;
-        badge.classList.add('show');
-      }
-    });
   }
 
   // ── Pódio Final ──
