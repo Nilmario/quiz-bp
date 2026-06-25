@@ -18,12 +18,19 @@
     .info-card{background:#16213e;border-radius:16px;padding:18px 30px;display:inline-block;border:2px solid #0f3460;max-width:420px}
     .info-card .label{color:#aaa;font-size:0.85rem;margin-bottom:4px}
     .info-card .value{color:#f5a623;font-size:1.2rem;font-weight:700;word-break:break-all}
+    .code-display{font-size:3rem;font-weight:900;letter-spacing:10px;color:#2ecc71;margin:10px 0;text-shadow:0 0 20px #2ecc7166}
+    .code-hint{color:#aaa;font-size:.85rem}
     #qrcode-wrap{background:#fff;border-radius:16px;padding:12px;display:inline-block;box-shadow:0 0 24px #e9456044}
     #qrcode-label{color:#aaa;font-size:0.8rem;margin-top:8px;text-align:center}
     #player-count{color:#2ecc71;font-size:1.1rem;margin:18px 0 10px}
     #players-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:950px;margin:0 auto 24px}
     .p-chip{background:#16213e;border:2px solid #e94560;border-radius:30px;padding:9px 20px;font-size:0.95rem;animation:pop .3s ease}
     @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+    /* AGUARDANDO CÓDIGO */
+    #s-waiting{text-align:center}
+    #s-waiting h2{font-size:2rem;color:#f5a623;margin-bottom:12px}
+    #s-waiting p{color:#aaa;margin-bottom:24px}
 
     /* PERGUNTA */
     #q-bar-wrap{background:#16213e;border-radius:50px;height:10px;margin-bottom:18px;overflow:hidden}
@@ -51,25 +58,22 @@
     .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:16px}
     .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:10px 22px;display:inline-block;margin-bottom:20px;font-size:1.05rem}
     .race-correct-box b{color:#2ecc71}
-
     .racetrack{position:relative;background:#0d1b3e;border-radius:20px;padding:20px 16px;overflow:hidden;max-width:900px;margin:0 auto 20px}
     .racetrack::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);pointer-events:none}
     .finish-line{position:absolute;right:20px;top:0;bottom:0;width:14px;background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);border-radius:4px;opacity:.7;z-index:2}
     .finish-flag{position:absolute;right:6px;top:-10px;font-size:1.4rem;z-index:3}
-
     .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:10px;position:relative;height:52px}
     .race-lane:last-child{margin-bottom:0}
     .lane-label{width:120px;font-size:.8rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.5}
     .lane-label small{display:block;color:#f5a623;font-size:.72rem}
     .lane-road{flex:1;position:relative;height:44px;background:#16213e;border-radius:30px;overflow:visible}
     .lane-road::after{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)}
-
     .horse-wrap{position:absolute;top:50%;transform:translateY(-50%);z-index:4;display:flex;align-items:center;gap:2px}
     .horse-wrap .horse{font-size:1.9rem;line-height:1;filter:drop-shadow(0 0 6px rgba(245,166,35,.7))}
     .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.65rem;font-weight:900;border-radius:30px;padding:1px 5px;white-space:nowrap;opacity:0;transition:opacity .4s}
     .horse-wrap .pos-badge.show{opacity:1}
 
-    /* PÓDIO FINAL */
+    /* PÓDIO */
     #s-final{text-align:center}
     #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:10px}
     .podium-stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:24px auto 30px;max-width:700px}
@@ -94,13 +98,9 @@
     .btn:hover{transform:translateY(-2px)}
     .btn.ghost{background:#16213e;box-shadow:none;border:2px solid #0f3460;color:#fff}
     .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449)}
-
     .btn-row{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap}
 
-    /* TOAST */
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:12px 28px;border-radius:30px;font-weight:600;display:none;z-index:999}
-
-    /* CONFETTI */
     #confetti-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:998;display:none}
   </style>
 </head>
@@ -109,22 +109,33 @@
 <!-- ══ LOBBY ══ -->
 <div class="screen active" id="s-lobby">
   <h1>🎯 Quiz B+P</h1>
-  <p class="subtitle">Escaneie o QR Code ou compartilhe o link</p>
+  <p class="subtitle">Gere um código e aguarde os jogadores entrarem</p>
+
   <div class="lobby-top">
     <div>
       <div id="qrcode-wrap"><div id="qrcode"></div></div>
-      <div id="qrcode-label">📱 Aponte a câmera para entrar</div>
+      <div id="qrcode-label">📱 QR Code do jogador</div>
     </div>
-    <div class="info-card">
-      <div class="label">🔗 Link para os jogadores</div>
-      <div class="value" id="player-url">—</div>
+    <div>
+      <div class="info-card" style="margin-bottom:14px">
+        <div class="label">🔑 Código da partida</div>
+        <div class="code-display" id="code-display">——</div>
+        <div class="code-hint">Os alunos digitam este código para entrar</div>
+      </div>
+      <div class="info-card">
+        <div class="label">🔗 Link dos jogadores</div>
+        <div class="value" id="player-url">—</div>
+      </div>
     </div>
   </div>
+
   <div id="player-count">👥 0 jogadores conectados</div>
   <div id="players-grid"></div>
+
   <div class="btn-row">
-    <button class="btn" onclick="startGame()">🚀 Iniciar Quiz</button>
-    <button class="btn green" onclick="location.href='/editor.html'">✏️ Editar Perguntas</button>
+    <button class="btn green" onclick="generateCode()">🔑 Gerar Código / Nova Sala</button>
+    <button class="btn" onclick="startGame()" id="btn-start" disabled>🚀 Iniciar Quiz</button>
+    <button class="btn ghost" onclick="location.href=\'/editor.html\'">✏️ Editar Perguntas</button>
     <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
   </div>
 </div>
@@ -154,7 +165,7 @@
   <h2>🏇 Corrida dos Campeões!</h2>
   <p class="race-subtitle">Placar após esta rodada</p>
   <div class="race-correct-box">✅ Resposta correta: <b id="race-answer-text"></b></div>
-  <div class="racetrack" id="racetrack">
+  <div class="racetrack">
     <div class="finish-line"></div>
     <div class="finish-flag">🏁</div>
     <div id="race-lanes"></div>
@@ -170,7 +181,8 @@
   <div class="podium-stage" id="podium-stage"></div>
   <div class="podium-rest"  id="podium-rest"></div>
   <div class="btn-row">
-    <button class="btn" onclick="resetGame()">🔄 Nova Rodada</button>
+    <button class="btn green" onclick="generateCode()">🔑 Nova Partida</button>
+    <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
   </div>
 </div>
 
@@ -184,26 +196,38 @@
 
   document.getElementById('player-url').textContent = playerLink;
 
-  new QRCode(document.getElementById('qrcode'), {
-    text: playerLink, width: 160, height: 160,
-    colorDark: '#1a1a2e', colorLight: '#ffffff',
-    correctLevel: QRCode.CorrectLevel.H
-  });
+  let qrInstance = null;
+  function buildQR() {
+    const wrap = document.getElementById('qrcode');
+    wrap.innerHTML = '';
+    qrInstance = new QRCode(wrap, {
+      text: playerLink, width:160, height:160,
+      colorDark:'#1a1a2e', colorLight:'#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+  }
+  buildQR();
 
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
 
-  // ── WebSocket ──
   function connect() {
     ws = new WebSocket(wsUrl);
-    ws.onopen    = () => ws.send(JSON.stringify({ type: 'monitor_connect' }));
+    ws.onopen    = () => ws.send(JSON.stringify({ type:'monitor_connect' }));
     ws.onmessage = e  => handle(JSON.parse(e.data));
     ws.onclose   = () => setTimeout(connect, 2000);
   }
 
   function handle(data) {
-    if (data.type === 'state')         renderPlayers(data.players);
+    if (data.type === 'state') {
+      renderPlayers(data.players);
+      if (data.gameCode) {
+        showCode(data.gameCode);
+        document.getElementById('btn-start').disabled = false;
+      }
+    }
     if (data.type === 'player_joined') renderPlayers(data.players);
+    if (data.type === 'new_code')      showCode(data.gameCode);
     if (data.type === 'question')      showQuestion(data);
     if (data.type === 'tick')          updateTimer(data.timeLeft);
     if (data.type === 'answer_update') {
@@ -211,17 +235,26 @@
       totalPlayers  = data.totalPlayers;
       document.getElementById('q-answered').textContent = `✅ ${answeredCount}/${totalPlayers}`;
     }
-    if (data.type === 'reveal') showReveal(data);
-    if (data.type === 'final')  showFinal(data.ranking);
-    if (data.type === 'reset')  location.reload();
-    if (data.type === 'error')  toast(data.msg);
+    if (data.type === 'reveal')  showReveal(data);
+    if (data.type === 'final')   showFinal(data.ranking);
+    if (data.type === 'reset') {
+      show('s-lobby');
+      document.getElementById('code-display').textContent = '——';
+      document.getElementById('btn-start').disabled = true;
+      renderPlayers([]);
+    }
+    if (data.type === 'error') toast(data.msg);
   }
 
-  function send(obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 
   function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+  }
+
+  function showCode(code) {
+    document.getElementById('code-display').textContent = code;
   }
 
   function renderPlayers(list) {
@@ -231,21 +264,32 @@
       list.map(p => `<div class="p-chip">👤 ${p.name}</div>`).join('');
   }
 
-  function startGame()   { send({ type: 'start_game' }); }
-  function nextQ()       { send({ type: 'next_question' }); }
-  function forceReveal() { send({ type: 'reveal_answer' }); }
-  function resetGame()   { send({ type: 'reset_game' }); }
+  async function generateCode() {
+    const res  = await fetch('/api/new-code', { method:'POST' });
+    const data = await res.json();
+    showCode(data.gameCode);
+    document.getElementById('btn-start').disabled = false;
+    renderPlayers([]);
+    show('s-lobby');
+    stopConfetti();
+    toast(`✅ Código gerado: ${data.gameCode}`);
+  }
+
+  function startGame()   { send({ type:'start_game' }); }
+  function nextQ()       { send({ type:'next_question' }); }
+  function forceReveal() { send({ type:'reveal_answer' }); }
+  function resetGame()   { send({ type:'reset_game' }); }
 
   function showQuestion(d) {
     show('s-question');
     answeredCount  = 0;
     currentOptions = d.options;
     currentCorrect = d.correct;
-    document.getElementById('q-num').textContent  = `${d.index + 1}/${d.total}`;
-    document.getElementById('q-bar').style.width  = `${(d.index / d.total) * 100}%`;
+    document.getElementById('q-num').textContent  = `${d.index+1}/${d.total}`;
+    document.getElementById('q-bar').style.width  = `${(d.index/d.total)*100}%`;
     document.getElementById('q-text').textContent = d.question;
     document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
-    document.querySelectorAll('.opt').forEach((o, i) => {
+    document.querySelectorAll('.opt').forEach((o,i) => {
       o.className = 'opt';
       const txt = d.options[i] || '';
       document.getElementById(`o${i}`).textContent = txt;
@@ -260,17 +304,14 @@
     el.className   = t <= 5 ? 'urgent' : '';
   }
 
-  // ══════════════════════════════════════════════
-  //  CORRIDA DE CAVALINHOS — ANIMAÇÃO SUAVE
-  // ══════════════════════════════════════════════
+  // ══ CORRIDA ══
   const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇'];
 
   function showReveal(data) {
-    document.querySelectorAll('.opt').forEach((o, i) => {
+    document.querySelectorAll('.opt').forEach((o,i) => {
       if (!currentOptions[i]) return;
       o.classList.add(i === data.correct ? 'correct' : 'wrong');
     });
-
     setTimeout(() => {
       show('s-race');
       document.getElementById('race-answer-text').textContent =
@@ -278,12 +319,11 @@
       document.getElementById('btn-next-race').style.display = 'none';
       document.getElementById('btn-next-race').textContent =
         data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
-
-      buildRace(data.ranking || [], data.isLast);
+      buildRace(data.ranking || []);
     }, 1600);
   }
 
-  function buildRace(ranking, isLast) {
+  function buildRace(ranking) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
     if (!ranking.length) return;
@@ -291,17 +331,13 @@
     const maxScore = Math.max(...ranking.map(p => p.score), 1);
     const MIN_PCT  = 2;
     const MAX_PCT  = 84;
-    const DURATION = 3200; // duração da corrida em ms
+    const DURATION = 3200;
 
-    // Monta lanes com cavalinhos na largada
     ranking.forEach((p, i) => {
       const lane = document.createElement('div');
       lane.className = 'race-lane';
       lane.innerHTML = `
-        <div class="lane-label">
-          ${p.name}
-          <small>⭐ <span id="score-count-${i}">0</span> pts</small>
-        </div>
+        <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">0</span> pts</small></div>
         <div class="lane-road">
           <div class="horse-wrap" id="hw-${i}" style="left:${MIN_PCT}%">
             <span class="horse">${HORSES[i % HORSES.length]}</span>
@@ -311,46 +347,33 @@
       container.appendChild(lane);
     });
 
-    // Aguarda o DOM renderizar e dispara a corrida
     requestAnimationFrame(() => requestAnimationFrame(() => {
-
       ranking.forEach((p, i) => {
         const targetPct = MIN_PCT + Math.round((p.score / maxScore) * (MAX_PCT - MIN_PCT));
         const hw        = document.getElementById(`hw-${i}`);
         const scoreEl   = document.getElementById(`score-count-${i}`);
-        const delay     = i * 150; // cada cavalo sai 150ms depois
-
-        // Ativa transição suave com delay
+        const delay     = i * 150;
         setTimeout(() => {
-          hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+          hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
           hw.style.left       = `${targetPct}%`;
         }, delay);
-
-        // Contador de pontos sobe junto com o movimento
-        setTimeout(() => {
-          animateCount(scoreEl, 0, p.score, DURATION);
-        }, delay);
+        setTimeout(() => animateCount(scoreEl, 0, p.score, DURATION), delay);
       });
-
-      // Após todos chegarem: mostra badges e botão
       const totalDelay = DURATION + ranking.length * 150 + 500;
       setTimeout(() => {
         updatePositionBadges(ranking);
         document.getElementById('btn-next-race').style.display = 'inline-block';
       }, totalDelay);
-
     }));
   }
 
-  // Anima número de 'from' até 'to' em 'duration' ms com ease-out
   function animateCount(el, from, to, duration) {
     if (!el) return;
     const start = performance.now();
     const range = to - from;
     function step(now) {
-      const elapsed  = now - start;
-      const progress = Math.min(elapsed / duration, 1);
-      const eased    = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      const progress = Math.min((now - start) / duration, 1);
+      const eased    = 1 - Math.pow(1 - progress, 3);
       el.textContent = Math.round(from + range * eased);
       if (progress < 1) requestAnimationFrame(step);
     }
@@ -358,114 +381,98 @@
   }
 
   function updatePositionBadges(ranking) {
-    const sorted = [...ranking].sort((a, b) => b.score - a.score);
-    ranking.forEach((p, i) => {
+    const sorted = [...ranking].sort((a,b) => b.score - a.score);
+    ranking.forEach((p,i) => {
       const pos   = sorted.findIndex(s => s.name === p.name) + 1;
       const badge = document.getElementById(`pos-${i}`);
       if (badge) {
-        badge.textContent = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+        badge.textContent = pos===1?'🥇':pos===2?'🥈':pos===3?'🥉':`${pos}º`;
         badge.classList.add('show');
       }
     });
   }
 
-  // ══════════════════════════════════════════════
-  //  PÓDIO FINAL
-  // ══════════════════════════════════════════════
+  // ══ PÓDIO FINAL ══
   function showFinal(ranking) {
     show('s-final');
     stopConfetti();
-
     const stage = document.getElementById('podium-stage');
     const rest  = document.getElementById('podium-rest');
-    stage.innerHTML = '';
-    rest.innerHTML  = '';
+    stage.innerHTML = rest.innerHTML = '';
 
-    // Ordem visual: 2º | 1º | 3º
     const podiumOrder = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
-    const medals      = ['🥈','🥇','🥉'];
-    const heights     = ['110px','165px','80px'];
+    const medals  = ['🥈','🥇','🥉'];
+    const heights = ['110px','165px','80px'];
 
-    podiumOrder.forEach((p, vi) => {
+    podiumOrder.forEach((p,vi) => {
       const block = document.createElement('div');
       block.className = 'podium-block';
       block.innerHTML = `
         <div class="podium-avatar">${medals[vi]}</div>
         <div class="podium-name">${p.name}</div>
         <div class="podium-pts">⭐ ${p.score} pts</div>
-        <div class="podium-pillar" style="height:${heights[vi]}">${vi === 1 ? '👑' : ''}</div>`;
+        <div class="podium-pillar" style="height:${heights[vi]}">${vi===1?'👑':''}</div>`;
       stage.appendChild(block);
     });
 
-    ranking.slice(3).forEach((p, i) => {
+    ranking.slice(3).forEach((p,i) => {
       const row = document.createElement('div');
       row.className = 'rank-row';
-      row.innerHTML = `
-        <div class="rank-pos">${i + 4}º</div>
-        <div class="rank-name">${p.name}</div>
-        <div class="rank-pts">⭐ ${p.score} pts</div>`;
+      row.innerHTML = `<div class="rank-pos">${i+4}º</div><div class="rank-name">${p.name}</div><div class="rank-pts">⭐ ${p.score} pts</div>`;
       rest.appendChild(row);
     });
 
-    // Animação: 3º → 2º → 1º, depois confetti
     const blocks = stage.querySelectorAll('.podium-block');
-    [2, 0, 1].forEach((bi, ti) => {
+    [2,0,1].forEach((bi,ti) => {
       setTimeout(() => {
-        if (blocks[bi]) blocks[bi].classList.add('show');
-        if (bi === 1) startConfetti();
-      }, 400 + ti * 700);
+        if(blocks[bi]) blocks[bi].classList.add('show');
+        if(bi===1) startConfetti();
+      }, 400 + ti*700);
     });
-
-    rest.querySelectorAll('.rank-row').forEach((r, i) => {
-      setTimeout(() => r.classList.add('show'), 400 + 3 * 700 + i * 200);
+    rest.querySelectorAll('.rank-row').forEach((r,i) => {
+      setTimeout(() => r.classList.add('show'), 400 + 3*700 + i*200);
     });
   }
 
-  // ══════════════════════════════════════════════
-  //  CONFETTI
-  // ══════════════════════════════════════════════
+  // ══ CONFETTI ══
   const canvas = document.getElementById('confetti-canvas');
   const ctx    = canvas.getContext('2d');
-  let pieces   = [], animId = null;
+  let pieces = [], animId = null;
 
   function startConfetti() {
     canvas.style.display = 'block';
     canvas.width  = window.innerWidth;
     canvas.height = window.innerHeight;
-    pieces = Array.from({ length: 180 }, () => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * -canvas.height,
-      r: 5 + Math.random() * 8,
-      d: 2 + Math.random() * 3,
-      color: `hsl(${Math.random()*360},90%,60%)`,
-      tilt: Math.random() * 10 - 5,
-      ts: 0.08 + Math.random() * 0.18
+    pieces = Array.from({length:180}, () => ({
+      x:Math.random()*canvas.width, y:Math.random()*-canvas.height,
+      r:5+Math.random()*8, d:2+Math.random()*3,
+      color:`hsl(${Math.random()*360},90%,60%)`,
+      tilt:Math.random()*10-5, ts:0.08+Math.random()*0.18
     }));
     (function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0,0,canvas.width,canvas.height);
       pieces.forEach(p => {
         ctx.beginPath();
-        ctx.ellipse(p.x, p.y, p.r, p.r / 2, p.tilt, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        p.y += p.d; p.tilt += p.ts; p.x += Math.sin(p.tilt) * 1.3;
-        if (p.y > canvas.height) { p.y = -10; p.x = Math.random() * canvas.width; }
+        ctx.ellipse(p.x,p.y,p.r,p.r/2,p.tilt,0,Math.PI*2);
+        ctx.fillStyle = p.color; ctx.fill();
+        p.y+=p.d; p.tilt+=p.ts; p.x+=Math.sin(p.tilt)*1.3;
+        if(p.y>canvas.height){p.y=-10;p.x=Math.random()*canvas.width;}
       });
       animId = requestAnimationFrame(draw);
     })();
   }
 
   function stopConfetti() {
-    if (animId) cancelAnimationFrame(animId);
+    if(animId) cancelAnimationFrame(animId);
     canvas.style.display = 'none';
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
   }
 
   function toast(msg) {
     const t = document.getElementById('toast');
     t.textContent   = msg;
     t.style.display = 'block';
-    setTimeout(() => t.style.display = 'none', 3000);
+    setTimeout(() => t.style.display='none', 3000);
   }
 
   connect();
