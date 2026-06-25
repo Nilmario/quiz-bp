@@ -1,9 +1,9 @@
-const express   = require('express');
-const http      = require('http');
+const express = require('express');
+const http    = require('http');
 const WebSocket = require('ws');
-const fs        = require('fs');
-const path      = require('path');
-const crypto    = require('crypto');
+const fs      = require('fs');
+const path    = require('path');
+const crypto  = require('crypto');
 
 const app    = express();
 const server = http.createServer(app);
@@ -12,12 +12,10 @@ const wss    = new WebSocket.Server({ server });
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-// ── Perguntas ──────────────────────────────────────────
+// ── Perguntas ──────────────────────────────────────────────────
 const QF = path.join(__dirname, 'questions.json');
 function loadQuestions() {
-  if (!fs.existsSync(QF)) {
-    fs.writeFileSync(QF, JSON.stringify([], null, 2));
-  }
+  if (!fs.existsSync(QF)) fs.writeFileSync(QF, JSON.stringify([], null, 2));
   return JSON.parse(fs.readFileSync(QF));
 }
 
@@ -27,7 +25,7 @@ app.post('/api/questions/save', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Estado do jogo ─────────────────────────────────────
+// ── Estado do jogo ─────────────────────────────────────────────
 let gameCode    = null;
 let gameStarted = false;
 let players     = {};
@@ -71,11 +69,18 @@ function startTimer(limit) {
   stopTimer();
   timeLeft   = limit;
   revealDone = false;
-  sendMonitor({ type: 'tick', timeLeft });
+
+  // ✅ FIX 1: tick enviado para monitor E para todos os jogadores
+  const tickAll = () => {
+    sendMonitor({ type: 'tick', timeLeft });
+    Object.values(players).forEach(p => sendTo(p.ws, { type: 'tick', timeLeft }));
+  };
+
+  tickAll(); // envia imediatamente o valor inicial
 
   timer = setInterval(() => {
     timeLeft--;
-    sendMonitor({ type: 'tick', timeLeft });
+    tickAll();
     if (timeLeft <= 0) revealAnswer();
   }, 1000);
 }
@@ -88,7 +93,6 @@ function revealAnswer() {
   const q      = questions[qIndex];
   const isLast = qIndex >= questions.length - 1;
 
-  // Monitor recebe gabarito completo
   sendMonitor({
     type       : 'reveal',
     correct    : q.correct,
@@ -97,22 +101,26 @@ function revealAnswer() {
     isLast
   });
 
-  // Cada jogador recebe seu resultado individual
+  // ✅ FIX 2: envia "points" ganhos nesta rodada além do score total
   Object.values(players).forEach(p => {
+    const hit        = p.lastAnswer === q.correct;
+    const timeLimit  = q.timeLimit || 20;
+    const pointsGained = hit ? Math.max(100, Math.round((timeLeft / timeLimit) * 1000)) : 0;
+
     sendTo(p.ws, {
-      type   : 'reveal',
+      type  : 'reveal',
       correct: q.correct,
-      hit    : p.lastAnswer === q.correct,
-      score  : p.score
+      hit,
+      score : p.score,
+      points: pointsGained   // ✅ quantos pontos ganhou nesta rodada
     });
   });
 }
 
-// ── WebSocket ──────────────────────────────────────────
+// ── WebSocket ───────────────────────────────────────────────────
 wss.on('connection', ws => {
   let playerId = null;
 
-  // Keepalive ping para evitar timeout no Railway
   const ping = setInterval(() => {
     if (ws.readyState === 1) ws.ping();
   }, 25000);
@@ -213,10 +221,7 @@ wss.on('connection', ws => {
     }
 
     // ── Reset ──
-    if (data.type === 'reset_game') {
-      resetAll();
-      return;
-    }
+    if (data.type === 'reset_game') { resetAll(); return; }
   });
 });
 
@@ -226,23 +231,24 @@ function sendQuestion() {
 
   Object.values(players).forEach(p => { p.answered = false; p.lastAnswer = null; });
 
-  // Monitor recebe pergunta + gabarito
+  // ✅ FIX 4: limpa opções vazias antes de enviar (suporte a perguntas V/F)
+  const cleanOptions = q.options.filter(o => o && o.trim());
+
   sendMonitor({
     type     : 'question',
     question : q.question,
-    options  : q.options,
+    options  : q.options,      // monitor recebe todas (inclusive vazias para layout)
     correct  : q.correct,
     index    : qIndex,
     total    : questions.length,
     timeLimit
   });
 
-  // Jogadores recebem apenas as opções (SEM gabarito)
   Object.values(players).forEach(p => {
     sendTo(p.ws, {
       type     : 'question',
       question : q.question,
-      options  : q.options,
+      options  : cleanOptions,  // ✅ jogador recebe só opções com texto
       index    : qIndex,
       total    : questions.length,
       timeLimit
@@ -264,15 +270,21 @@ function resetAll() {
   qIndex      = 0;
   revealDone  = false;
   timeLeft    = 0;
+  questions   = [];  // ✅ FIX 6: limpa perguntas do jogo anterior
   sendMonitor({ type: 'reset' });
 }
 
 // ── Gerar código ──
 app.post('/api/new-code', (_, res) => {
+  // ✅ FIX 3: para o timer se um jogo estiver em andamento
+  stopTimer();
   gameCode    = generateCode();
   gameStarted = false;
   players     = {};
   qIndex      = 0;
+  revealDone  = false;
+  timeLeft    = 0;
+  questions   = [];
   sendMonitor({ type: 'new_code', gameCode });
   res.json({ gameCode });
 });
