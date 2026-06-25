@@ -99,4 +99,326 @@
 <!-- ══ LOBBY ══ -->
 <div class="screen active" id="s-lobby">
   <h1>🎯 Quiz B+P</h1>
-  <p class="subtitle">Escaneie o QR
+  <p class="subtitle">Escaneie o QR Code ou compartilhe o link abaixo</p>
+  <div class="lobby-top">
+    <div>
+      <div id="qrcode-wrap">
+        <div id="qrcode"></div>
+      </div>
+      <div id="qrcode-label">📱 Aponte a câmera para entrar</div>
+    </div>
+    <div class="info-card">
+      <div class="label">🔗 Link para os jogadores</div>
+      <div class="value" id="player-url">—</div>
+    </div>
+  </div>
+  <div id="player-count">👥 0 jogadores conectados</div>
+  <div id="players-grid"></div>
+  <div class="btn-row">
+    <button class="btn" onclick="startGame()">🚀 Iniciar Quiz</button>
+    <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
+  </div>
+</div>
+
+<!-- ══ PERGUNTA ══ -->
+<div class="screen" id="s-question">
+  <div id="q-bar-wrap"><div id="q-bar" style="width:0%"></div></div>
+  <div id="q-header">
+    <div id="q-num">1/25</div>
+    <div id="q-timer">20</div>
+    <div id="q-answered">✅ 0/0</div>
+  </div>
+  <div id="q-text">...</div>
+  <div id="q-opts">
+    <div class="opt"><span class="opt-icon">▲</span><span id="o0"></span></div>
+    <div class="opt"><span class="opt-icon">◆</span><span id="o1"></span></div>
+    <div class="opt"><span class="opt-icon">●</span><span id="o2"></span></div>
+    <div class="opt"><span class="opt-icon">■</span><span id="o3"></span></div>
+  </div>
+  <div class="btn-row" style="margin-top:14px">
+    <button class="btn ghost" onclick="forceReveal()">⏩ Revelar agora</button>
+  </div>
+</div>
+
+<!-- ══ CORRIDA DE CAVALINHOS ══ -->
+<div class="screen" id="s-race">
+  <h2>🏇 Corrida em Andamento!</h2>
+  <p class="race-subtitle">Placar após esta rodada</p>
+  <div class="race-answer-box">✅ Resposta correta: <span id="race-answer-text"></span></div>
+  <div class="race-track-wrap" id="race-tracks"></div>
+  <div class="btn-row">
+    <button class="btn" id="btn-next-race" onclick="nextQ()">➡️ Próxima Pergunta</button>
+  </div>
+</div>
+
+<!-- ══ PÓDIO FINAL ══ -->
+<div class="screen" id="s-final">
+  <h2>🏆 Resultado Final</h2>
+  <div class="podium-stage" id="podium-stage"></div>
+  <div class="podium-rest" id="podium-rest"></div>
+  <div class="btn-row">
+    <button class="btn" onclick="resetGame()">🔄 Nova Rodada</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<canvas id="confetti-canvas"></canvas>
+
+<script>
+  // ── Config ──
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const wsUrl = `${proto}://${location.host}`;
+  const playerLink = `${location.origin}/jogador.html`;
+
+  document.getElementById('player-url').textContent = playerLink;
+
+  // ── QR Code ──
+  new QRCode(document.getElementById('qrcode'), {
+    text: playerLink,
+    width: 160,
+    height: 160,
+    colorDark: '#1a1a2e',
+    colorLight: '#ffffff',
+    correctLevel: QRCode.CorrectLevel.H
+  });
+
+  let ws, totalPlayers = 0, answeredCount = 0;
+  let currentOptions = [], currentCorrect = 0;
+
+  // ── WebSocket ──
+  function connect() {
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'monitor_connect' }));
+    ws.onmessage = e => handle(JSON.parse(e.data));
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+
+  function handle(data) {
+    if (data.type === 'state')         renderPlayers(data.players);
+    if (data.type === 'player_joined') renderPlayers(data.players);
+    if (data.type === 'question')      showQuestion(data);
+    if (data.type === 'tick')          updateTimer(data.timeLeft);
+    if (data.type === 'answer_update') {
+      answeredCount = data.answeredCount;
+      totalPlayers  = data.totalPlayers;
+      document.getElementById('q-answered').textContent = `✅ ${answeredCount}/${totalPlayers}`;
+    }
+    if (data.type === 'reveal') showReveal(data);
+    if (data.type === 'final') showFinal(data.ranking);
+    if (data.type === 'reset') location.reload();
+    if (data.type === 'error') toast(data.msg);
+  }
+
+  function send(obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function renderPlayers(list) {
+    totalPlayers = list.length;
+    document.getElementById('player-count').textContent = `👥 ${list.length} jogador(es) conectado(s)`;
+    document.getElementById('players-grid').innerHTML =
+      list.map(p => `<div class="p-chip">👤 ${p.name}</div>`).join('');
+  }
+
+  function startGame()   { send({ type: 'start_game' }); }
+  function nextQ()       { send({ type: 'next_question' }); }
+  function forceReveal() { send({ type: 'reveal_answer' }); }
+  function resetGame()   { send({ type: 'reset_game' }); }
+
+  function showQuestion(d) {
+    show('s-question');
+    answeredCount  = 0;
+    currentOptions = d.options;
+    currentCorrect = d.correct;
+    document.getElementById('q-num').textContent  = `${d.index + 1}/${d.total}`;
+    document.getElementById('q-bar').style.width  = `${(d.index / d.total) * 100}%`;
+    document.getElementById('q-text').textContent = d.question;
+    document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
+    document.querySelectorAll('.opt').forEach((o, i) => {
+      o.className = 'opt';
+      const txt = d.options[i] || '';
+      document.getElementById(`o${i}`).textContent = txt;
+      o.style.opacity = txt ? '1' : '0';
+    });
+    updateTimer(d.timeLimit);
+  }
+
+  function updateTimer(t) {
+    const el = document.getElementById('q-timer');
+    el.textContent = t;
+    el.className   = t <= 5 ? 'urgent' : '';
+  }
+
+  // ── CORRIDA DE CAVALINHOS ──
+  const HORSE_EMOJIS = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇'];
+
+  function showReveal(data) {
+    // Marca visual das opções na tela de pergunta
+    document.querySelectorAll('.opt').forEach((o, i) => {
+      if (!currentOptions[i]) return;
+      o.classList.add(i === data.correct ? 'correct' : 'wrong');
+    });
+
+    setTimeout(() => {
+      show('s-race');
+
+      // Resposta correta
+      document.getElementById('race-answer-text').textContent =
+        currentOptions[data.correct] || '';
+
+      // Botão próxima
+      document.getElementById('btn-next-race').textContent =
+        data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
+
+      // Monta as pistas
+      const ranking = data.ranking || [];
+      const maxScore = ranking.length ? ranking[0].score : 1;
+      const container = document.getElementById('race-tracks');
+      container.innerHTML = '';
+
+      ranking.forEach((p, i) => {
+        const pct = maxScore > 0 ? Math.max(4, Math.round((p.score / maxScore) * 92)) : 4;
+        const lane = document.createElement('div');
+        lane.className = 'race-lane';
+        lane.innerHTML = `
+          <div class="lane-name">${HORSE_EMOJIS[i % HORSE_EMOJIS.length]} ${p.name}</div>
+          <div class="lane-track">
+            <div class="lane-bar" id="bar-${i}" style="width:0%"></div>
+            <span class="horse-emoji" id="horse-${i}" style="left:0px">🏁</span>
+          </div>
+          <div class="lane-pts">⭐ ${p.score}</div>`;
+        container.appendChild(lane);
+      });
+
+      // Anima após render (deixa o browser pintar o 0% primeiro)
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        ranking.forEach((p, i) => {
+          const maxScore2 = ranking[0].score || 1;
+          const pct = Math.max(4, Math.round((p.score / maxScore2) * 92));
+          const bar   = document.getElementById(`bar-${i}`);
+          const horse = document.getElementById(`horse-${i}`);
+          if (!bar) return;
+          bar.style.width = `${pct}%`;
+          // posiciona o cavalo junto à barra
+          const track = bar.parentElement;
+          horse.style.left = `calc(${pct}% - 28px)`;
+        });
+      }));
+
+    }, 1800);
+  }
+
+  // ── PÓDIO FINAL com animação ──
+  function showFinal(ranking) {
+    show('s-final');
+    stopConfetti();
+
+    const stage = document.getElementById('podium-stage');
+    const rest  = document.getElementById('podium-rest');
+    stage.innerHTML = '';
+    rest.innerHTML  = '';
+
+    // Pódio — ordem visual: 2º | 1º | 3º
+    const podiumOrder = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
+    const medals = ['🥈','🥇','🥉'];
+    const heights = ['120px','170px','90px'];
+
+    podiumOrder.forEach((p, vi) => {
+      const block = document.createElement('div');
+      block.className = 'podium-block';
+      block.innerHTML = `
+        <div class="podium-avatar">${medals[vi]}</div>
+        <div class="podium-name">${p.name}</div>
+        <div class="podium-pts">⭐ ${p.score} pts</div>
+        <div class="podium-pillar" style="height:${heights[vi]}">${vi === 1 ? '👑' : ''}</div>`;
+      stage.appendChild(block);
+    });
+
+    // Demais classificados
+    ranking.slice(3).forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'rank-row';
+      row.innerHTML = `
+        <div class="rank-pos">${i + 4}º</div>
+        <div class="rank-name">${p.name}</div>
+        <div class="rank-pts">⭐ ${p.score} pts</div>`;
+      rest.appendChild(row);
+    });
+
+    // Anima pódio: 3º → 2º → 1º
+    const blocks = stage.querySelectorAll('.podium-block');
+    // ordem de revelação: índice 2 (3º), 0 (2º), 1 (1º)
+    const revealOrder = [2, 0, 1];
+    revealOrder.forEach((bi, ti) => {
+      setTimeout(() => {
+        if (blocks[bi]) blocks[bi].classList.add('show');
+        if (bi === 1) {
+          // 1º lugar revelado → confetti!
+          startConfetti();
+        }
+      }, 400 + ti * 700);
+    });
+
+    // Anima demais
+    rest.querySelectorAll('.rank-row').forEach((r, i) => {
+      setTimeout(() => r.classList.add('show'), 400 + 3 * 700 + i * 200);
+    });
+  }
+
+  // ── CONFETTI ──
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx    = canvas.getContext('2d');
+  let confettiPieces = [], confettiAnim = null;
+
+  function startConfetti() {
+    canvas.style.display = 'block';
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    confettiPieces = Array.from({length: 160}, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      r: 6 + Math.random() * 8,
+      d: 2 + Math.random() * 3,
+      color: `hsl(${Math.random()*360},90%,60%)`,
+      tilt: Math.random() * 10 - 5,
+      tiltSpeed: 0.1 + Math.random() * 0.2
+    }));
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      confettiPieces.forEach(p => {
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y, p.r, p.r / 2, p.tilt, 0, 2 * Math.PI);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        p.y += p.d;
+        p.tilt += p.tiltSpeed;
+        p.x += Math.sin(p.tilt) * 1.2;
+        if (p.y > canvas.height) {
+          p.y = -10; p.x = Math.random() * canvas.width;
+        }
+      });
+      confettiAnim = requestAnimationFrame(draw);
+    }
+    draw();
+  }
+
+  function stopConfetti() {
+    if (confettiAnim) cancelAnimationFrame(confettiAnim);
+    canvas.style.display = 'none';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent  = msg;
+    t.style.display = 'block';
+    setTimeout(() => t.style.display = 'none', 3000);
+  }
+
+  connect();
+</script>
+</body>
+</html>
