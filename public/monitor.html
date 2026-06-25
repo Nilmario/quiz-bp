@@ -1,4 +1,253 @@
-<!-- Substitua apenas o bloco <script> do monitor.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Monitor — Quiz B+P</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+    .screen{width:100%;max-width:1100px;display:none}
+    .screen.active{display:block}
+
+    /* LOBBY */
+    #s-lobby{text-align:center}
+    #s-lobby h1{font-size:3.2rem;color:#e94560;margin-bottom:8px;text-shadow:0 0 30px #e9456066}
+    #s-lobby .subtitle{color:#aaa;font-size:1.15rem;margin-bottom:24px}
+    .lobby-top{display:flex;align-items:center;justify-content:center;gap:40px;flex-wrap:wrap;margin-bottom:18px}
+    .info-card{background:#16213e;border-radius:16px;padding:18px 30px;display:inline-block;border:2px solid #0f3460;max-width:420px}
+    .info-card .label{color:#aaa;font-size:0.85rem;margin-bottom:4px}
+    .info-card .value{color:#f5a623;font-size:1.2rem;font-weight:700;word-break:break-all}
+    .code-display{font-size:3rem;font-weight:900;letter-spacing:10px;color:#2ecc71;margin:10px 0;text-shadow:0 0 20px #2ecc7166}
+    .code-hint{color:#aaa;font-size:.85rem}
+    #qrcode-wrap{background:#fff;border-radius:16px;padding:12px;display:inline-block;box-shadow:0 0 24px #e9456044}
+    #qrcode-label{color:#aaa;font-size:0.8rem;margin-top:8px;text-align:center}
+    #player-count{color:#2ecc71;font-size:1.1rem;margin:18px 0 10px}
+    #players-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:1050px;margin:0 auto 24px}
+    .p-chip{background:#16213e;border:2px solid #e94560;border-radius:30px;padding:6px 14px;font-size:0.82rem;animation:pop .3s ease}
+    @keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+
+    /* PERGUNTA */
+    #q-bar-wrap{background:#16213e;border-radius:50px;height:10px;margin-bottom:18px;overflow:hidden}
+    #q-bar{height:100%;background:linear-gradient(90deg,#e94560,#f5a623);border-radius:50px;transition:width .4s}
+    #q-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    #q-num{background:#16213e;padding:9px 20px;border-radius:20px;color:#aaa;font-size:.95rem}
+    #q-timer{font-size:3.2rem;font-weight:900;color:#f5a623;width:76px;height:76px;border-radius:50%;border:5px solid #f5a623;display:flex;align-items:center;justify-content:center;transition:all .3s}
+    #q-timer.urgent{color:#e94560;border-color:#e94560;animation:pulse .5s infinite alternate}
+    @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.1)}}
+    #q-answered{background:#16213e;padding:9px 20px;border-radius:20px;color:#2ecc71;font-size:.95rem}
+    #q-text{background:#16213e;border-radius:18px;padding:34px;text-align:center;font-size:1.65rem;font-weight:700;line-height:1.5;margin-bottom:22px;min-height:115px;display:flex;align-items:center;justify-content:center;border:2px solid #0f3460}
+    #q-opts{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+    .opt{border-radius:13px;padding:18px 22px;font-size:1.1rem;font-weight:600;display:flex;align-items:center;gap:13px;transition:all .4s}
+    .opt:nth-child(1){background:#e94560}
+    .opt:nth-child(2){background:#1a6fbf}
+    .opt:nth-child(3){background:#f5a623;color:#1a1a2e}
+    .opt:nth-child(4){background:#27ae60}
+    .opt-icon{font-size:1.5rem}
+    .opt.correct{box-shadow:0 0 28px #2ecc71;border:3px solid #2ecc71;transform:scale(1.02)}
+    .opt.wrong{opacity:.22}
+
+    /* CORRIDA */
+    #s-race{text-align:center}
+    #s-race h2{font-size:2rem;color:#f5a623;margin-bottom:4px}
+    .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:12px}
+    .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:8px 18px;display:inline-block;margin-bottom:14px;font-size:1rem}
+    .race-correct-box b{color:#2ecc71}
+
+    .racetrack{
+      position:relative;
+      background:#0d1b3e;
+      border-radius:20px;
+      padding:12px 16px;
+      overflow-y:auto;
+      overflow-x:hidden;
+      max-width:1000px;
+      max-height:72vh;
+      margin:0 auto 16px;
+      scrollbar-width:thin;
+      scrollbar-color:#0f3460 #0d1b3e;
+    }
+    .racetrack::-webkit-scrollbar{width:6px}
+    .racetrack::-webkit-scrollbar-thumb{background:#0f3460;border-radius:3px}
+    .racetrack::before{
+      content:'';position:absolute;inset:0;
+      background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);
+      pointer-events:none;
+    }
+    .finish-line{
+      position:sticky;right:0;top:0;bottom:0;
+      width:14px;float:right;height:100%;
+      background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);
+      border-radius:4px;opacity:.7;z-index:2;
+      pointer-events:none;
+    }
+
+    .race-lane{
+      display:flex;align-items:center;gap:8px;
+      margin-bottom:6px;position:relative;
+      height:38px;
+    }
+    .race-lane:last-child{margin-bottom:0}
+
+    .lane-label{
+      width:110px;font-size:.72rem;font-weight:600;
+      text-align:right;white-space:nowrap;overflow:hidden;
+      text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.4
+    }
+    .lane-label small{display:block;color:#f5a623;font-size:.65rem}
+
+    .lane-road{
+      flex:1;position:relative;height:34px;
+      background:#16213e;border-radius:30px;overflow:visible
+    }
+    .lane-road::after{
+      content:'';position:absolute;top:50%;left:0;right:0;
+      height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)
+    }
+
+    .horse-wrap{
+      position:absolute;top:50%;transform:translateY(-50%);
+      z-index:4;display:flex;align-items:center;gap:2px
+    }
+    .horse-wrap .horse{
+      font-size:1.45rem;
+      line-height:1;
+      filter:drop-shadow(0 0 5px rgba(245,166,35,.7));
+      transform:scaleX(-1);
+      display:inline-block;
+    }
+
+    /* ✅ Cavalo parado fica acinzentado */
+    .horse-wrap.parado .horse{
+      filter:drop-shadow(0 0 3px rgba(150,150,150,.4));
+      opacity:0.45;
+    }
+
+    .horse-wrap .pos-badge{
+      background:#f5a623;color:#1a1a2e;font-size:.6rem;
+      font-weight:900;border-radius:30px;padding:1px 4px;
+      white-space:nowrap;opacity:0;transition:opacity .4s
+    }
+    .horse-wrap .pos-badge.show{opacity:1}
+
+    /* PÓDIO FINAL */
+    #s-final{text-align:center}
+    #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:10px}
+    .podium-stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:24px auto 30px;max-width:700px}
+    .podium-block{display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(60px);transition:opacity .6s ease,transform .6s ease}
+    .podium-block.show{opacity:1;transform:translateY(0)}
+    .podium-avatar{font-size:2.8rem;margin-bottom:4px}
+    .podium-name{font-size:.95rem;font-weight:700;margin-bottom:4px;max-width:150px;word-break:break-word}
+    .podium-pts{font-size:.82rem;color:#f5a623;margin-bottom:8px;font-weight:600}
+    .podium-pillar{border-radius:12px 12px 0 0;width:140px;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:900}
+    .podium-block:nth-child(1) .podium-pillar{height:110px;background:linear-gradient(180deg,#aaa,#666)}
+    .podium-block:nth-child(2) .podium-pillar{height:165px;background:linear-gradient(180deg,#f5d020,#e6a817)}
+    .podium-block:nth-child(3) .podium-pillar{height:80px;background:linear-gradient(180deg,#cd7f32,#9a5e25)}
+
+    .podium-rest{max-width:900px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media(max-width:600px){.podium-rest{grid-template-columns:1fr}}
+
+    .rank-row{display:flex;align-items:center;gap:10px;background:#16213e;border-radius:12px;padding:10px 16px;opacity:0;transform:translateX(-30px);transition:opacity .4s ease,transform .4s ease}
+    .rank-row.show{opacity:1;transform:translateX(0)}
+    .rank-pos{font-size:1.3rem;width:36px}
+    .rank-name{flex:1;font-size:.95rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rank-pts{color:#2ecc71;font-size:.9rem;font-weight:700;white-space:nowrap}
+
+    /* BOTÕES */
+    .btn{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff;border:none;border-radius:50px;padding:13px 34px;font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 18px #e9456044;transition:transform .2s}
+    .btn:hover{transform:translateY(-2px)}
+    .btn.ghost{background:#16213e;box-shadow:none;border:2px solid #0f3460;color:#fff}
+    .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449)}
+    .btn-row{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+
+    #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:12px 28px;border-radius:30px;font-weight:600;display:none;z-index:999}
+    #confetti-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:998;display:none}
+  </style>
+</head>
+<body>
+
+<!-- ══ LOBBY ══ -->
+<div class="screen active" id="s-lobby">
+  <h1>🎯 Quiz B+P</h1>
+  <p class="subtitle">Gere um código e aguarde os jogadores entrarem</p>
+
+  <div class="lobby-top">
+    <div>
+      <div id="qrcode-wrap"><div id="qrcode"></div></div>
+      <div id="qrcode-label">📱 QR Code do jogador</div>
+    </div>
+    <div>
+      <div class="info-card" style="margin-bottom:14px">
+        <div class="label">🔑 Código da partida</div>
+        <div class="code-display" id="code-display">——</div>
+        <div class="code-hint">Os alunos digitam este código para entrar</div>
+      </div>
+      <div class="info-card">
+        <div class="label">🔗 Link dos jogadores</div>
+        <div class="value" id="player-url">—</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="player-count">👥 0 jogadores conectados</div>
+  <div id="players-grid"></div>
+
+  <div class="btn-row">
+    <button class="btn green" onclick="generateCode()">🔑 Gerar Código / Nova Sala</button>
+    <button class="btn" onclick="startGame()" id="btn-start" disabled>🚀 Iniciar Quiz</button>
+    <button class="btn ghost" onclick="location.href='/editor.html'">✏️ Editar Perguntas</button>
+    <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
+  </div>
+</div>
+
+<!-- ══ PERGUNTA ══ -->
+<div class="screen" id="s-question">
+  <div id="q-bar-wrap"><div id="q-bar" style="width:0%"></div></div>
+  <div id="q-header">
+    <div id="q-num">1/25</div>
+    <div id="q-timer">20</div>
+    <div id="q-answered">✅ 0/0</div>
+  </div>
+  <div id="q-text">...</div>
+  <div id="q-opts">
+    <div class="opt"><span class="opt-icon">▲</span><span id="o0"></span></div>
+    <div class="opt"><span class="opt-icon">◆</span><span id="o1"></span></div>
+    <div class="opt"><span class="opt-icon">●</span><span id="o2"></span></div>
+    <div class="opt"><span class="opt-icon">■</span><span id="o3"></span></div>
+  </div>
+  <div class="btn-row" style="margin-top:14px">
+    <button class="btn ghost" onclick="forceReveal()">⏩ Revelar agora</button>
+  </div>
+</div>
+
+<!-- ══ CORRIDA ══ -->
+<div class="screen" id="s-race">
+  <h2>🏇 Corrida dos Campeões!</h2>
+  <p class="race-subtitle">Placar após esta rodada</p>
+  <div class="race-correct-box">✅ Resposta correta: <b id="race-answer-text"></b></div>
+  <div class="racetrack">
+    <div class="finish-line"></div>
+    <div id="race-lanes"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn" id="btn-next-race" onclick="nextQ()" style="display:none">➡️ Próxima Pergunta</button>
+  </div>
+</div>
+
+<!-- ══ PÓDIO FINAL ══ -->
+<div class="screen" id="s-final">
+  <h2>🏆 Resultado Final</h2>
+  <div class="podium-stage" id="podium-stage"></div>
+  <div class="podium-rest"  id="podium-rest"></div>
+  <div class="btn-row">
+    <button class="btn green" onclick="generateCode()">🔑 Nova Partida</button>
+    <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+<canvas id="confetti-canvas"></canvas>
+
 <script>
   const proto      = location.protocol === 'https:' ? 'wss' : 'ws';
   const wsUrl      = `${proto}://${location.host}`;
@@ -21,7 +270,7 @@
   let ws, totalPlayers = 0, answeredCount = 0;
   let currentOptions = [], currentCorrect = 0;
 
-  // ✅ Guarda a posição atual de cada cavalo entre rodadas (por nome do jogador)
+  // ✅ Guarda posição atual de cada cavalo entre rodadas { "NomeJogador": porcentagem }
   const horsePositions = {};
 
   const HORSES = [
@@ -145,38 +394,35 @@
       document.getElementById('btn-next-race').style.display = 'none';
       document.getElementById('btn-next-race').textContent =
         data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
+
+      // ✅ Passa roundEarned vindo do server para buildRace
       buildRace(data.ranking || [], data.roundEarned || {});
     }, 1600);
   }
 
   // ══ CORRIDA ══
-  // ✅ data.ranking já vem com score TOTAL acumulado
-  // ✅ data.roundEarned = { "NomeJogador": pontosGanhosNestaRodada }
-  //    → Se roundEarned[nome] > 0: cavalo avança
-  //    → Se roundEarned[nome] === 0: cavalo FICA PARADO na posição anterior
-
   function buildRace(ranking, roundEarned) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
     if (!ranking.length) return;
 
     const DURATION = 3200;
-    const MIN_PCT  = 2;   // posição inicial (início da pista)
-    const MAX_PCT  = 88;  // posição máxima (linha de chegada)
+    const MIN_PCT  = 2;   // início da pista
+    const MAX_PCT  = 88;  // linha de chegada
 
-    // Score máximo para calcular posição proporcional na pista
+    // Score máximo para calcular posição proporcional
     const maxScore = Math.max(...ranking.map(p => p.score), 1);
 
     ranking.forEach((p, i) => {
-      // ✅ Posição atual do cavalo (salva entre rodadas)
-      const currentPos = horsePositions[p.name] ?? MIN_PCT;
+      // ✅ Posição salva da rodada anterior (ou início se for a 1ª)
+      const savedPos = horsePositions[p.name] ?? MIN_PCT;
 
       const lane = document.createElement('div');
       lane.className = 'race-lane';
       lane.innerHTML = `
-        <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">0</span> pts</small></div>
+        <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">${p.score}</span> pts</small></div>
         <div class="lane-road">
-          <div class="horse-wrap" id="hw-${i}" style="left:${currentPos}%">
+          <div class="horse-wrap" id="hw-${i}" style="left:${savedPos}%">
             <span class="horse">${HORSES[i % HORSES.length]}</span>
             <span class="pos-badge" id="pos-${i}"></span>
           </div>
@@ -190,35 +436,33 @@
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ranking.forEach((p, i) => {
         const hw      = document.getElementById(`hw-${i}`);
-        const scoreEl = document.getElementById(`score-count-${i}`);
-        const delay   = i * 80;
-
-        // ✅ Exibe score atual imediatamente (sem animar do zero — já acumulado)
-        if (scoreEl) scoreEl.textContent = p.score;
-
-        const earned = roundEarned?.[p.name] ?? 0;
+        const earned  = roundEarned?.[p.name] ?? 0;
 
         if (earned > 0) {
-          // ✅ Avança: posição proporcional ao score total acumulado
+          // ✅ Acertou: avança proporcional ao score total acumulado
           const targetPct = MIN_PCT + Math.round(
             (p.score / maxScore) * (MAX_PCT - MIN_PCT) * 0.92
           );
 
-          // Garante que nunca volta para trás
+          // Nunca volta para trás
           const finalPct = Math.max(horsePositions[p.name] ?? MIN_PCT, targetPct);
+
+          // Remove classe parado (se tinha)
+          hw.classList.remove('parado');
 
           setTimeout(() => {
             hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
             hw.style.left       = `${finalPct}%`;
-          }, delay);
+          }, i * 80);
 
           // ✅ Salva nova posição
           horsePositions[p.name] = finalPct;
 
         } else {
-          // ✅ Não pontuou: cavalo fica parado, sem transição
+          // ✅ Errou ou não respondeu: cavalo FICA PARADO
           hw.style.transition = 'none';
           hw.style.left       = `${horsePositions[p.name] ?? MIN_PCT}%`;
+          hw.classList.add('parado'); // fica acinzentado
         }
       });
 
@@ -330,3 +574,5 @@
 
   connect();
 </script>
+</body>
+</html>
