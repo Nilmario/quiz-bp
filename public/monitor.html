@@ -83,13 +83,12 @@
     }
 
     .race-lane{
-      display:flex;align-items:center;gap:8px;
-      margin-bottom:6px;position:relative;
-      height:38px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
     }
-    .race-lane:last-child{margin-bottom:0}
 
-    /* ✅ CORREÇÃO: label menor para não sobrepor o cavalo */
     .lane-label{
       width:100px;
       font-size:.68rem;
@@ -107,8 +106,12 @@
     .lane-label small{display:block;color:#f5a623;font-size:.65rem}
 
     .lane-road{
-      flex:1;position:relative;height:34px;
-      background:#16213e;border-radius:30px;overflow:visible
+      flex:1;
+      position:relative;
+      height:38px;
+      background:#16213e;
+      border-radius:30px;
+      overflow:hidden; /* ✅ Impede cavalo de vazar visualmente */
     }
     .lane-road::after{
       content:'';position:absolute;top:50%;left:0;right:0;
@@ -116,8 +119,13 @@
     }
 
     .horse-wrap{
-      position:absolute;top:50%;transform:translateY(-50%);
-      z-index:4;display:flex;align-items:center;gap:2px
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      z-index:4;
+      display:flex;
+      align-items:center;
+      gap:2px;
     }
     .horse-wrap .horse{
       font-size:1.45rem;
@@ -126,12 +134,10 @@
       transform:scaleX(-1);
       display:inline-block;
     }
-
     .horse-wrap.parado .horse{
       filter:drop-shadow(0 0 3px rgba(150,150,150,.4));
       opacity:0.45;
     }
-
     .horse-wrap .pos-badge{
       background:#f5a623;color:#1a1a2e;font-size:.6rem;
       font-weight:900;border-radius:30px;padding:1px 4px;
@@ -197,10 +203,8 @@
       </div>
     </div>
   </div>
-
   <div id="player-count">👥 0 jogadores conectados</div>
   <div id="players-grid"></div>
-
   <div class="btn-row">
     <button class="btn green" onclick="generateCode()">🔑 Gerar Código / Nova Sala</button>
     <button class="btn" onclick="startGame()" id="btn-start" disabled>🚀 Iniciar Quiz</button>
@@ -413,12 +417,12 @@
     if (!ranking.length) return;
 
     const DURATION = 3200;
-    const MIN_PCT  = 2;
-    const MAX_PCT  = 84; // ✅ Reduzido de 88 para 84 — dá folga ao emoji do cavalo
+    const MIN_PCT  = 2;   // ✅ posição inicial (linha de largada)
+    const MAX_PCT  = 58;  // ✅ posição máxima — cavalo líder para aqui no máximo
 
-    // ✅ Líder sempre chega em MAX_PCT
     const topScore = Math.max(...ranking.map(p => p.score), 1);
 
+    // ── Cria as lanes ──
     ranking.forEach((p, i) => {
       const savedPos = horsePositions[p.name] ?? MIN_PCT;
 
@@ -427,7 +431,7 @@
       lane.innerHTML = `
         <div class="lane-label">${p.name}<small>⭐ <span id="score-count-${i}">${p.score - (roundEarned[p.name] ?? 0)}</span> pts</small></div>
         <div class="lane-road">
-          <div class="horse-wrap parado" id="hw-${i}" style="left:calc(${savedPos}% - 28px);transition:none">
+          <div class="horse-wrap parado" id="hw-${i}" style="left:${savedPos}%;transition:none">
             <span class="horse">${HORSES[i % HORSES.length]}</span>
             <span class="pos-badge" id="pos-${i}"></span>
           </div>
@@ -438,7 +442,7 @@
     // Scroll pro topo
     document.querySelector('.racetrack').scrollTop = 0;
 
-    // ✅ Duplo rAF garante posição inicial aplicada antes de animar
+    // ✅ Duplo rAF garante posição inicial renderizada antes de animar
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ranking.forEach((p, i) => {
         const hw     = document.getElementById(`hw-${i}`);
@@ -448,16 +452,14 @@
           // ✅ Proporcional ao topScore — líder chega em MAX_PCT
           const rawPct    = MIN_PCT + ((p.score / topScore) * (MAX_PCT - MIN_PCT));
           const targetPct = Math.min(rawPct, MAX_PCT);
-
           // ✅ Nunca volta para trás
-          const finalPct = Math.max(horsePositions[p.name] ?? MIN_PCT, targetPct);
+          const finalPct  = Math.max(horsePositions[p.name] ?? MIN_PCT, targetPct);
 
           hw.classList.remove('parado');
 
           setTimeout(() => {
             hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
-            // ✅ CORREÇÃO PRINCIPAL: subtrai largura do cavalo (~28px) para não sair da pista
-            hw.style.left = `calc(${finalPct}% - 28px)`;
+            hw.style.left = `${finalPct}%`;
           }, i * 80);
 
           // ✅ Anima contador de pontos subindo
@@ -468,7 +470,7 @@
         } else {
           // ✅ Errou: fica parado e acinzentado
           hw.style.transition = 'none';
-          hw.style.left       = `calc(${horsePositions[p.name] ?? MIN_PCT}% - 28px)`;
+          hw.style.left = `${horsePositions[p.name] ?? MIN_PCT}%`;
           hw.classList.add('parado');
         }
       });
@@ -575,8 +577,7 @@
     (function draw() {
       ctx.clearRect(0,0,canvas.width,canvas.height);
       pieces.forEach(p => {
-        ctx.beginPath();
-        ctx.ellipse(p.x,p.y,p.r,p.r/2,p.tilt,0,Math.PI*2);
+        ctx.beginPath(); ctx.ellipse(p.x,p.y,p.r,p.r/2,p.tilt,0,Math.PI*2);
         ctx.fillStyle = p.color; ctx.fill();
         p.y+=p.d; p.tilt+=p.ts; p.x+=Math.sin(p.tilt)*1.3;
         if(p.y>canvas.height){p.y=-10;p.x=Math.random()*canvas.width;}
