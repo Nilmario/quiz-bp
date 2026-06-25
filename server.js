@@ -16,25 +16,21 @@ app.use(express.json());
 const QF = path.join(__dirname, 'questions.json');
 function loadQuestions() {
   if (!fs.existsSync(QF)) {
-    const demo = [
-      { question:'Qual a capital do Brasil?', options:['Salvador','Brasília','São Paulo','Rio de Janeiro'], correct:1 },
-      { question:'Quanto é 7 × 8?',           options:['54','56','58','64'],                               correct:1 }
-    ];
-    fs.writeFileSync(QF, JSON.stringify(demo, null, 2));
+    fs.writeFileSync(QF, JSON.stringify([], null, 2));
   }
   return JSON.parse(fs.readFileSync(QF));
 }
 
-app.get('/api/questions',      (_,res) => res.json(loadQuestions()));
-app.post('/api/questions/save',(req,res) => {
+app.get('/api/questions',       (_, res) => res.json(loadQuestions()));
+app.post('/api/questions/save', (req, res) => {
   fs.writeFileSync(QF, JSON.stringify(req.body, null, 2));
   res.json({ ok: true });
 });
 
 // ── Estado do jogo ─────────────────────────────────────
-let gameCode    = null;   // código ativo
+let gameCode    = null;
 let gameStarted = false;
-let players     = {};     // id → { ws, name, score, answered }
+let players     = {};
 let monitor     = null;
 let questions   = [];
 let qIndex      = 0;
@@ -43,7 +39,7 @@ let timeLeft    = 0;
 let revealDone  = false;
 
 function generateCode() {
-  return crypto.randomBytes(3).toString('hex').toUpperCase(); // ex: "A3F9C2"
+  return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 
 function broadcast(obj) {
@@ -75,11 +71,11 @@ function startTimer(limit) {
   stopTimer();
   timeLeft   = limit;
   revealDone = false;
-  sendMonitor({ type:'tick', timeLeft });
+  sendMonitor({ type: 'tick', timeLeft });
 
   timer = setInterval(() => {
     timeLeft--;
-    sendMonitor({ type:'tick', timeLeft });
+    sendMonitor({ type: 'tick', timeLeft });
     if (timeLeft <= 0) revealAnswer();
   }, 1000);
 }
@@ -89,24 +85,25 @@ function revealAnswer() {
   revealDone = true;
   stopTimer();
 
-  const q    = questions[qIndex];
+  const q      = questions[qIndex];
   const isLast = qIndex >= questions.length - 1;
-  const data = {
+
+  // Monitor recebe gabarito completo
+  sendMonitor({
     type       : 'reveal',
     correct    : q.correct,
     correctText: q.options[q.correct],
     ranking    : ranking(),
     isLast
-  };
-  sendMonitor(data);
+  });
 
-  // Notifica cada jogador se acertou
+  // Cada jogador recebe seu resultado individual
   Object.values(players).forEach(p => {
     sendTo(p.ws, {
-      type    : 'reveal',
-      correct : q.correct,
-      hit     : p.lastAnswer === q.correct,
-      score   : p.score
+      type   : 'reveal',
+      correct: q.correct,
+      hit    : p.lastAnswer === q.correct,
+      score  : p.score
     });
   });
 }
@@ -115,6 +112,19 @@ function revealAnswer() {
 wss.on('connection', ws => {
   let playerId = null;
 
+  // Keepalive ping para evitar timeout no Railway
+  const ping = setInterval(() => {
+    if (ws.readyState === 1) ws.ping();
+  }, 25000);
+
+  ws.on('close', () => {
+    clearInterval(ping);
+    if (playerId && players[playerId]) {
+      delete players[playerId];
+      sendMonitor({ type: 'player_joined', players: playerList() });
+    }
+  });
+
   ws.on('message', raw => {
     let data;
     try { data = JSON.parse(raw); } catch { return; }
@@ -122,16 +132,16 @@ wss.on('connection', ws => {
     // ── Monitor conecta ──
     if (data.type === 'monitor_connect') {
       monitor = ws;
-      sendTo(ws, { type:'state', players: playerList(), gameCode });
+      sendTo(ws, { type: 'state', players: playerList(), gameCode });
       return;
     }
 
     // ── Jogador valida código ──
     if (data.type === 'validate_code') {
       if (!gameCode || data.code?.toUpperCase() !== gameCode) {
-        sendTo(ws, { type:'code_invalid' });
+        sendTo(ws, { type: 'code_invalid' });
       } else {
-        sendTo(ws, { type:'code_ok' });
+        sendTo(ws, { type: 'code_ok' });
       }
       return;
     }
@@ -139,29 +149,29 @@ wss.on('connection', ws => {
     // ── Jogador entra ──
     if (data.type === 'join') {
       if (!gameCode || data.code?.toUpperCase() !== gameCode) {
-        sendTo(ws, { type:'error', msg:'Código inválido ou partida não iniciada.' });
+        sendTo(ws, { type: 'error', msg: 'Código inválido ou partida não iniciada.' });
         return;
       }
       if (gameStarted) {
-        sendTo(ws, { type:'error', msg:'A partida já começou!' });
+        sendTo(ws, { type: 'error', msg: 'A partida já começou!' });
         return;
       }
       const name = (data.name || '').trim().slice(0, 24);
-      if (!name) { sendTo(ws, { type:'error', msg:'Nome inválido.' }); return; }
+      if (!name) { sendTo(ws, { type: 'error', msg: 'Nome inválido.' }); return; }
       const dup = Object.values(players).find(p => p.name.toLowerCase() === name.toLowerCase());
-      if (dup) { sendTo(ws, { type:'error', msg:'Nome já em uso.' }); return; }
+      if (dup) { sendTo(ws, { type: 'error', msg: 'Nome já em uso.' }); return; }
 
       playerId = crypto.randomUUID();
-      players[playerId] = { ws, name, score:0, answered:false, lastAnswer:null };
-      sendTo(ws, { type:'joined', name });
-      sendMonitor({ type:'player_joined', players: playerList() });
+      players[playerId] = { ws, name, score: 0, answered: false, lastAnswer: null };
+      sendTo(ws, { type: 'joined', name });
+      sendMonitor({ type: 'player_joined', players: playerList() });
       return;
     }
 
     // ── Iniciar jogo ──
     if (data.type === 'start_game') {
       if (!Object.keys(players).length) {
-        sendTo(ws, { type:'error', msg:'Nenhum jogador na sala!' }); return;
+        sendTo(ws, { type: 'error', msg: 'Nenhum jogador na sala!' }); return;
       }
       questions   = loadQuestions();
       qIndex      = 0;
@@ -174,14 +184,15 @@ wss.on('connection', ws => {
     if (data.type === 'answer') {
       const p = playerId && players[playerId];
       if (!p || p.answered || revealDone) return;
-      p.answered    = true;
-      p.lastAnswer  = data.option;
-      const q       = questions[qIndex];
+      p.answered   = true;
+      p.lastAnswer = data.option;
+      const q      = questions[qIndex];
       if (data.option === q.correct) {
-        p.score += Math.max(100, Math.round((timeLeft / q.timeLimit || 1) * 1000));
+        const timeLimit = q.timeLimit || 20;
+        p.score += Math.max(100, Math.round((timeLeft / timeLimit) * 1000));
       }
       const answeredCount = Object.values(players).filter(x => x.answered).length;
-      sendMonitor({ type:'answer_update', answeredCount, totalPlayers: Object.keys(players).length });
+      sendMonitor({ type: 'answer_update', answeredCount, totalPlayers: Object.keys(players).length });
       if (answeredCount === Object.keys(players).length) revealAnswer();
       return;
     }
@@ -193,8 +204,8 @@ wss.on('connection', ws => {
     if (data.type === 'next_question') {
       qIndex++;
       if (qIndex >= questions.length) {
-        sendMonitor({ type:'final', ranking: ranking() });
-        broadcast({ type:'game_over', ranking: ranking() });
+        sendMonitor({ type: 'final', ranking: ranking() });
+        broadcast({ type: 'game_over', ranking: ranking() });
       } else {
         sendQuestion();
       }
@@ -207,50 +218,56 @@ wss.on('connection', ws => {
       return;
     }
   });
-
-  ws.on('close', () => {
-    if (playerId && players[playerId]) {
-      delete players[playerId];
-      sendMonitor({ type:'player_joined', players: playerList() });
-    }
-  });
 });
 
 function sendQuestion() {
-  const q = questions[qIndex];
-  Object.values(players).forEach(p => { p.answered = false; p.lastAnswer = null; });
+  const q         = questions[qIndex];
   const timeLimit = q.timeLimit || 20;
+
+  Object.values(players).forEach(p => { p.answered = false; p.lastAnswer = null; });
+
+  // Monitor recebe pergunta + gabarito
   sendMonitor({
-    type: 'question', question: q.question, options: q.options,
-    correct: q.correct, index: qIndex, total: questions.length, timeLimit
+    type     : 'question',
+    question : q.question,
+    options  : q.options,
+    correct  : q.correct,
+    index    : qIndex,
+    total    : questions.length,
+    timeLimit
   });
-  broadcast({
-    type: 'question', options: q.options.map((_, i) => i),
-    index: qIndex, total: questions.length, timeLimit
+
+  // Jogadores recebem apenas as opções (SEM gabarito)
+  Object.values(players).forEach(p => {
+    sendTo(p.ws, {
+      type     : 'question',
+      question : q.question,
+      options  : q.options,
+      index    : qIndex,
+      total    : questions.length,
+      timeLimit
+    });
   });
+
   startTimer(timeLimit);
 }
 
 function resetAll() {
   stopTimer();
-
-  // Desconecta todos os jogadores
   Object.values(players).forEach(p => {
-    sendTo(p.ws, { type:'kicked', msg:'A sala foi reiniciada.' });
+    sendTo(p.ws, { type: 'kicked', msg: 'A sala foi reiniciada.' });
     p.ws.close();
   });
-
   players     = {};
   gameStarted = false;
   gameCode    = null;
   qIndex      = 0;
   revealDone  = false;
   timeLeft    = 0;
-
-  sendMonitor({ type:'reset' });
+  sendMonitor({ type: 'reset' });
 }
 
-// ── Gerar código (chamado pelo monitor ao clicar "Iniciar") ──
+// ── Gerar código ──
 app.post('/api/new-code', (_, res) => {
   gameCode    = generateCode();
   gameStarted = false;
