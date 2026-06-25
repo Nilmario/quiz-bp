@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <title>Monitor — Quiz B+P</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
@@ -13,9 +14,13 @@
     #s-lobby{text-align:center}
     #s-lobby h1{font-size:3.2rem;color:#e94560;margin-bottom:8px;text-shadow:0 0 30px #e9456066}
     #s-lobby .subtitle{color:#aaa;font-size:1.15rem;margin-bottom:24px}
+    .lobby-top{display:flex;align-items:center;justify-content:center;gap:40px;flex-wrap:wrap;margin-bottom:18px}
     .info-card{background:#16213e;border-radius:16px;padding:18px 30px;display:inline-block;margin:8px;border:2px solid #0f3460}
     .info-card .label{color:#aaa;font-size:0.85rem;margin-bottom:4px}
     .info-card .value{color:#f5a623;font-size:1.5rem;font-weight:700;word-break:break-all}
+    #qrcode-wrap{background:#fff;border-radius:16px;padding:12px;display:inline-block;box-shadow:0 0 24px #e9456044}
+    #qrcode-wrap canvas, #qrcode-wrap img{display:block}
+    #qrcode-label{color:#aaa;font-size:0.8rem;margin-top:8px;text-align:center}
     #player-count{color:#2ecc71;font-size:1.1rem;margin:18px 0 10px}
     #players-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;max-width:950px;margin:0 auto 24px}
     .p-chip{background:#16213e;border:2px solid #e94560;border-radius:30px;padding:9px 20px;font-size:0.95rem;animation:pop .3s ease}
@@ -41,20 +46,37 @@
     .opt.correct{box-shadow:0 0 28px #2ecc71;border:3px solid #2ecc71;transform:scale(1.02)}
     .opt.wrong{opacity:.22}
 
-    /* REVEAL */
-    #s-reveal{text-align:center}
-    #rev-correct{font-size:1.8rem;font-weight:700;color:#2ecc71;margin-bottom:6px}
-    #rev-answer{background:#16213e;border:2px solid #2ecc71;border-radius:14px;padding:14px 28px;font-size:1.25rem;display:inline-block;margin-bottom:22px}
-    #rev-podium{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
-    .pod{background:#16213e;border-radius:14px;padding:14px 20px;text-align:center;min-width:125px}
-    .pod-pos{font-size:1.7rem}
-    .pod-name{font-size:.95rem;font-weight:600;margin-top:4px}
-    .pod-pts{color:#f5a623;font-size:.85rem;margin-top:2px}
+    /* ── CORRIDA DE CAVALINHOS ── */
+    #s-race{text-align:center}
+    #s-race h2{font-size:1.8rem;color:#f5a623;margin-bottom:6px}
+    #s-race .race-subtitle{color:#aaa;font-size:0.9rem;margin-bottom:20px}
+    .race-track-wrap{background:#0f3460;border-radius:18px;padding:18px 24px;max-width:860px;margin:0 auto 20px}
+    .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:12px;position:relative;height:46px}
+    .race-lane:last-child{margin-bottom:0}
+    .lane-name{width:130px;font-size:0.85rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ddd}
+    .lane-track{flex:1;background:#16213e;border-radius:30px;height:36px;position:relative;overflow:hidden}
+    .lane-bar{height:100%;border-radius:30px;background:linear-gradient(90deg,#e94560,#f5a623);transition:width 0.6s cubic-bezier(.4,2,.6,1);min-width:0;display:flex;align-items:center;justify-content:flex-end;padding-right:6px}
+    .horse-emoji{font-size:1.5rem;position:absolute;top:50%;transform:translateY(-50%);transition:left 0.6s cubic-bezier(.4,2,.6,1);filter:drop-shadow(0 0 6px #f5a623)}
+    .lane-pts{width:72px;font-size:0.82rem;color:#f5a623;font-weight:700;flex-shrink:0;text-align:left}
+    .race-answer-box{background:#16213e;border:2px solid #2ecc71;border-radius:14px;padding:12px 24px;display:inline-block;margin-bottom:16px;font-size:1.1rem}
+    .race-answer-box span{color:#2ecc71;font-weight:700}
 
-    /* FINAL */
+    /* ── PÓDIO FINAL ── */
     #s-final{text-align:center}
-    #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:22px}
-    .rank-row{display:flex;align-items:center;gap:14px;background:#16213e;border-radius:12px;padding:13px 20px;margin-bottom:9px}
+    #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:10px}
+    .podium-stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:30px auto 36px;max-width:700px}
+    .podium-block{display:flex;flex-direction:column;align-items:center;opacity:0;transform:translateY(60px);transition:opacity .6s ease, transform .6s ease}
+    .podium-block.show{opacity:1;transform:translateY(0)}
+    .podium-avatar{font-size:3rem;margin-bottom:6px}
+    .podium-name{font-size:1rem;font-weight:700;margin-bottom:6px;max-width:150px;word-break:break-word}
+    .podium-pts{font-size:0.85rem;color:#f5a623;margin-bottom:10px;font-weight:600}
+    .podium-pillar{border-radius:12px 12px 0 0;width:140px;display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:900}
+    .podium-block:nth-child(1) .podium-pillar{height:120px;background:linear-gradient(180deg,#b0b0b0,#787878);/* 2º */}
+    .podium-block:nth-child(2) .podium-pillar{height:170px;background:linear-gradient(180deg,#f5d020,#f5a623);/* 1º */}
+    .podium-block:nth-child(3) .podium-pillar{height:90px;background:linear-gradient(180deg,#cd7f32,#a0522d);/* 3º */}
+    .podium-rest{max-width:640px;margin:0 auto}
+    .rank-row{display:flex;align-items:center;gap:14px;background:#16213e;border-radius:12px;padding:13px 20px;margin-bottom:9px;opacity:0;transform:translateX(-30px);transition:opacity .4s ease, transform .4s ease}
+    .rank-row.show{opacity:1;transform:translateX(0)}
     .rank-pos{font-size:1.7rem;width:44px}
     .rank-name{flex:1;font-size:1.15rem;font-weight:600}
     .rank-pts{color:#2ecc71;font-size:1.05rem;font-weight:700}
@@ -67,178 +89,14 @@
 
     /* TOAST */
     #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:12px 28px;border-radius:30px;font-weight:600;display:none;z-index:999}
+
+    /* Confetti canvas */
+    #confetti-canvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:998;display:none}
   </style>
 </head>
 <body>
 
+<!-- ══ LOBBY ══ -->
 <div class="screen active" id="s-lobby">
   <h1>🎯 Quiz B+P</h1>
-  <p class="subtitle">Compartilhe o link abaixo com os participantes</p>
-  <div>
-    <div class="info-card">
-      <div class="label">📱 Link para os jogadores</div>
-      <div class="value" id="player-url">—</div>
-    </div>
-  </div>
-  <div id="player-count">👥 0 jogadores conectados</div>
-  <div id="players-grid"></div>
-  <div class="btn-row">
-    <button class="btn" onclick="startGame()">🚀 Iniciar Quiz</button>
-    <button class="btn ghost" onclick="resetGame()">🔄 Resetar</button>
-  </div>
-</div>
-
-<div class="screen" id="s-question">
-  <div id="q-bar-wrap"><div id="q-bar" style="width:0%"></div></div>
-  <div id="q-header">
-    <div id="q-num">1/25</div>
-    <div id="q-timer">20</div>
-    <div id="q-answered">✅ 0/0</div>
-  </div>
-  <div id="q-text">...</div>
-  <div id="q-opts">
-    <div class="opt"><span class="opt-icon">▲</span><span id="o0"></span></div>
-    <div class="opt"><span class="opt-icon">◆</span><span id="o1"></span></div>
-    <div class="opt"><span class="opt-icon">●</span><span id="o2"></span></div>
-    <div class="opt"><span class="opt-icon">■</span><span id="o3"></span></div>
-  </div>
-  <div class="btn-row" style="margin-top:14px">
-    <button class="btn ghost" onclick="forceReveal()">⏩ Revelar agora</button>
-  </div>
-</div>
-
-<div class="screen" id="s-reveal">
-  <div id="rev-correct">✅ Resposta Correta!</div>
-  <div id="rev-answer"></div>
-  <div id="rev-podium"></div>
-  <div class="btn-row">
-    <button class="btn" id="btn-next" onclick="nextQ()">➡️ Próxima</button>
-  </div>
-</div>
-
-<div class="screen" id="s-final">
-  <h2>🏆 Placar Final</h2>
-  <div id="final-list"></div>
-  <div class="btn-row">
-    <button class="btn" onclick="resetGame()">🔄 Nova Rodada</button>
-  </div>
-</div>
-
-<div id="toast"></div>
-
-<script>
-  // ── URL dinâmica ──
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const wsUrl = `${proto}://${location.host}`;
-  const playerLink = `${location.origin}/jogador.html`;
-  document.getElementById('player-url').textContent = playerLink;
-
-  let ws, totalPlayers = 0, answeredCount = 0;
-  let currentOptions = [], currentCorrect = 0;
-
-  function connect() {
-    ws = new WebSocket(wsUrl);
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'monitor_connect' }));
-    ws.onmessage = e => handle(JSON.parse(e.data));
-    ws.onclose = () => setTimeout(connect, 2000); // reconecta
-  }
-
-  function handle(data) {
-    if (data.type === 'state') renderPlayers(data.players);
-    if (data.type === 'player_joined') renderPlayers(data.players);
-    if (data.type === 'question') showQuestion(data);
-    if (data.type === 'tick') updateTimer(data.timeLeft);
-    if (data.type === 'answer_update') {
-      answeredCount = data.answeredCount;
-      totalPlayers = data.totalPlayers;
-      document.getElementById('q-answered').textContent = `✅ ${answeredCount}/${totalPlayers}`;
-    }
-    if (data.type === 'reveal') showReveal(data);
-    if (data.type === 'final') showFinal(data.ranking);
-    if (data.type === 'reset') location.reload();
-    if (data.type === 'error') toast(data.msg);
-  }
-
-  function send(obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
-
-  function show(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-  }
-
-  function renderPlayers(list) {
-    totalPlayers = list.length;
-    document.getElementById('player-count').textContent = `👥 ${list.length} jogador(es) conectado(s)`;
-    document.getElementById('players-grid').innerHTML = list.map(p =>
-      `<div class="p-chip">👤 ${p.name}</div>`).join('');
-  }
-
-  function startGame() { send({ type: 'start_game' }); }
-  function nextQ() { send({ type: 'next_question' }); }
-  function forceReveal() { send({ type: 'reveal_answer' }); }
-  function resetGame() { send({ type: 'reset_game' }); }
-
-  function showQuestion(d) {
-    show('s-question');
-    answeredCount = 0;
-    currentOptions = d.options;
-    currentCorrect = d.correct;
-    document.getElementById('q-num').textContent = `${d.index + 1}/${d.total}`;
-    document.getElementById('q-bar').style.width = `${(d.index / d.total) * 100}%`;
-    document.getElementById('q-text').textContent = d.question;
-    document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
-    document.querySelectorAll('.opt').forEach((o, i) => {
-      o.className = 'opt';
-      const txt = d.options[i] || '';
-      document.getElementById(`o${i}`).textContent = txt;
-      o.style.opacity = txt ? '1' : '0';
-    });
-    updateTimer(d.timeLimit);
-  }
-
-  function updateTimer(t) {
-    const el = document.getElementById('q-timer');
-    el.textContent = t;
-    el.className = t <= 5 ? 'urgent' : '';
-  }
-
-  function showReveal(data) {
-    document.querySelectorAll('.opt').forEach((o, i) => {
-      if (!currentOptions[i]) return;
-      o.classList.add(i === data.correct ? 'correct' : 'wrong');
-    });
-    setTimeout(() => {
-      show('s-reveal');
-      document.getElementById('rev-answer').textContent = currentOptions[data.correct] || '';
-      document.getElementById('rev-podium').innerHTML = (data.ranking || []).map((p, i) =>
-        `<div class="pod">
-          <div class="pod-pos">${['🥇','🥈','🥉','4️⃣','5️⃣'][i] || i+1}</div>
-          <div class="pod-name">${p.name}</div>
-          <div class="pod-pts">⭐ ${p.score} pts</div>
-        </div>`).join('');
-      document.getElementById('btn-next').textContent =
-        data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
-    }, 1800);
-  }
-
-  function showFinal(ranking) {
-    show('s-final');
-    document.getElementById('final-list').innerHTML = ranking.map((p, i) =>
-      `<div class="rank-row">
-        <div class="rank-pos">${['🥇','🥈','🥉'][i] || (i+1)+'º'}</div>
-        <div class="rank-name">${p.name}</div>
-        <div class="rank-pts">⭐ ${p.score} pts</div>
-      </div>`).join('');
-  }
-
-  function toast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.style.display = 'block';
-    setTimeout(() => t.style.display = 'none', 3000);
-  }
-
-  connect();
-</script>
-</body>
-</html>
+  <p class="subtitle">Escaneie o QR
