@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quiz B+P — Jogar</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+    #app{width:100%;max-width:420px}
+    .screen{display:none}
+    .screen.active{display:block}
+
+    /* JOIN */
+    #s-join{text-align:center}
+    #s-join h1{font-size:2.2rem;color:#e94560;margin-bottom:8px}
+    #s-join p{color:#aaa;margin-bottom:26px}
+    input{width:100%;padding:15px 20px;border-radius:50px;border:2px solid #0f3460;background:#16213e;color:#fff;font-size:1.15rem;text-align:center;margin-bottom:13px;outline:none;transition:border-color .3s}
+    input:focus{border-color:#e94560}
+
+    /* WAIT */
+    #s-wait{text-align:center}
+    #s-wait h2{font-size:1.7rem;color:#f5a623;margin-bottom:10px}
+    #w-name{color:#2ecc71;font-size:1.15rem;margin-bottom:18px}
+    .spinner{width:54px;height:54px;border:5px solid #16213e;border-top-color:#e94560;border-radius:50%;animation:spin 1s linear infinite;margin:14px auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* QUESTION */
+    #s-question{text-align:center}
+    #p-bar-wrap{height:8px;background:#16213e;border-radius:50px;margin-bottom:14px;overflow:hidden}
+    #p-bar{height:100%;background:#f5a623;border-radius:50px;transition:width 1s linear}
+    #p-qnum{color:#aaa;font-size:.9rem;margin-bottom:18px}
+    #p-btns{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+    .pb{border:none;border-radius:15px;padding:0;cursor:pointer;color:#fff;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;font-weight:700;transition:transform .15s;-webkit-tap-highlight-color:transparent;position:relative;overflow:hidden}
+    .pb::after{content:'';position:absolute;inset:0;background:#fff;opacity:0;transition:opacity .2s}
+    .pb:active:not(:disabled)::after{opacity:.15}
+    .pb:nth-child(1){background:#e94560}
+    .pb:nth-child(2){background:#1a6fbf}
+    .pb:nth-child(3){background:#f5a623;color:#1a1a2e}
+    .pb:nth-child(4){background:#27ae60}
+    .pb .ic{font-size:1.9rem}
+    .pb .lb{font-size:.8rem;padding:0 8px;line-height:1.3;text-align:center}
+    .pb:disabled{opacity:.4;cursor:not-allowed}
+    .pb.selected{box-shadow:0 0 0 4px #fff;transform:scale(.96)}
+
+    /* SENT */
+    #s-sent{text-align:center;padding:16px}
+    #sent-icon{font-size:5rem;margin-bottom:12px}
+    #sent-pts{font-size:2.6rem;font-weight:900;margin-bottom:6px}
+    #sent-msg{font-size:1.2rem;color:#aaa;margin-bottom:8px}
+    #sent-total{color:#f5a623;font-size:.95rem}
+
+    /* FINAL */
+    #s-final{text-align:center}
+    #f-emoji{font-size:4.5rem;margin-bottom:10px}
+    #f-title{font-size:1.8rem;font-weight:bold;color:#f5a623;margin-bottom:8px}
+    #f-score{font-size:2.8rem;font-weight:900;color:#2ecc71;margin-bottom:14px}
+    #f-msg{color:#aaa;font-size:.95rem}
+
+    /* ERROR */
+    #s-error{text-align:center;padding:20px}
+    #s-error .err-icon{font-size:4rem;margin-bottom:14px}
+    #s-error p{color:#aaa;font-size:1.1rem;margin-bottom:20px}
+
+    .btn{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff;border:none;border-radius:50px;padding:14px 36px;font-size:1rem;font-weight:bold;cursor:pointer;margin-top:16px;display:inline-block;width:100%}
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div class="screen active" id="s-join">
+    <h1>🎯 Quiz B+P</h1>
+    <p>Digite seu nome para entrar na partida</p>
+    <input type="text" id="inp" placeholder="Seu nome..." maxlength="20"
+           onkeydown="if(event.key==='Enter')join()"/>
+    <button class="btn" onclick="join()">✅ Entrar no Jogo</button>
+  </div>
+
+  <div class="screen" id="s-wait">
+    <h2>Você entrou! 🎉</h2>
+    <div id="w-name"></div>
+    <div class="spinner"></div>
+    <p style="color:#aaa;font-size:.95rem">Aguarde o quiz começar...</p>
+  </div>
+
+  <div class="screen" id="s-question">
+    <div id="p-bar-wrap"><div id="p-bar" style="width:100%"></div></div>
+    <div id="p-qnum">Pergunta 1 de 25</div>
+    <div id="p-btns">
+      <button class="pb" onclick="answer(0)"><span class="ic">▲</span><span class="lb" id="l0"></span></button>
+      <button class="pb" onclick="answer(1)"><span class="ic">◆</span><span class="lb" id="l1"></span></button>
+      <button class="pb" onclick="answer(2)"><span class="ic">●</span><span class="lb" id="l2"></span></button>
+      <button class="pb" onclick="answer(3)"><span class="ic">■</span><span class="lb" id="l3"></span></button>
+    </div>
+  </div>
+
+  <div class="screen" id="s-sent">
+    <div id="sent-icon">⏳</div>
+    <div id="sent-pts"></div>
+    <div id="sent-msg">Aguarde o monitor...</div>
+    <div id="sent-total"></div>
+  </div>
+
+  <div class="screen" id="s-final">
+    <div id="f-emoji">🏆</div>
+    <div id="f-title">Fim de Jogo!</div>
+    <div id="f-score"></div>
+    <div id="f-msg">Confira o placar no monitor!</div>
+    <button class="btn" onclick="location.reload()">🔄 Jogar de Novo</button>
+  </div>
+
+  <div class="screen" id="s-error">
+    <div class="err-icon">⛔</div>
+    <p id="err-msg">Ocorreu um erro.</p>
+    <button class="btn" onclick="location.reload()">↩️ Tentar Novamente</button>
+  </div>
+
+</div>
+
+<script>
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const wsUrl = `${proto}://${location.host}`;
+
+  let ws, myName = '', myScore = 0, timeLeft = 20, hasAnswered = false;
+
+  function show(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function join() {
+    const name = document.getElementById('inp').value.trim();
+    if (!name) { alert('Digite seu nome!'); return; }
+    myName = name;
+
+    ws = new WebSocket(wsUrl);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'join', name: myName }));
+    ws.onmessage = e => handle(JSON.parse(e.data));
+    ws.onclose = () => {
+      if (document.getElementById('s-final').classList.contains('active')) return;
+      setTimeout(() => location.reload(), 3000);
+    };
+
+    document.getElementById('w-name').textContent = `👤 ${myName}`;
+    show('s-wait');
+  }
+
+  function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+  function handle(data) {
+    if (data.type === 'joined') { /* ok */ }
+
+    if (data.type === 'error') {
+      document.getElementById('err-msg').textContent = data.msg;
+      show('s-error');
+    }
+
+    if (data.type === 'question') {
+      hasAnswered = false;
+      timeLeft = data.timeLimit || 20;
+      loadQ(data);
+    }
+
+    if (data.type === 'answer_result') {
+      myScore = data.score;
+      showSent(data);
+    }
+
+    if (data.type === 'reveal') {
+      document.getElementById('sent-msg').textContent = 'Aguarde a próxima pergunta...';
+    }
+
+    if (data.type === 'reset') location.reload();
+
+    if (data.type === 'final') {
+      show('s-final');
+      document.getElementById('f-score').textContent = `⭐ ${myScore} pts`;
+      let emoji = '😢';
+      if (myScore > 18000) emoji = '🏆';
+      else if (myScore > 12000) emoji = '🎉';
+      else if (myScore > 7000) emoji = '👍';
+      else if (myScore > 3000) emoji = '😅';
+      document.getElementById('f-emoji').textContent = emoji;
+    }
+  }
+
+  function loadQ(data) {
+    show('s-question');
+    document.getElementById('p-qnum').textContent = `Pergunta ${data.index + 1} de ${data.total}`;
+
+    const btns = document.querySelectorAll('.pb');
+    btns.forEach((b, i) => {
+      b.disabled = false;
+      b.className = 'pb';
+      const txt = data.options[i] || '';
+      document.getElementById(`l${i}`).textContent = txt;
+      b.style.display = txt ? 'flex' : 'none';
+    });
+
+    // Timer visual
+    const bar = document.getElementById('p-bar');
+    bar.style.transition = 'none';
+    bar.style.width = '100%';
+    setTimeout(() => {
+      bar.style.transition = `width ${data.timeLimit}s linear`;
+      bar.style.width = '0%';
+    }, 80);
+  }
+
+  function answer(idx) {
+    if (hasAnswered) return;
+    hasAnswered = true;
+    document.querySelectorAll('.pb').forEach((b, i) => {
+      b.disabled = true;
+      if (i === idx) b.classList.add('selected');
+    });
+    send({ type: 'answer', answer: idx, timeLeft });
+  }
+
+  function showSent(data) {
+    show('s-sent');
+    if (data.correct) {
+      document.getElementById('sent-icon').textContent = '✅';
+      document.getElementById('sent-pts').textContent = `+${data.points} pts`;
+      document.getElementById('sent-pts').style.color = '#2ecc71';
+      document.getElementById('sent-msg').textContent = 'Correto! 🎉';
+    } else {
+      document.getElementById('sent-icon').textContent = '❌';
+      document.getElementById('sent-pts').textContent = '+0 pts';
+      document.getElementById('sent-pts').style.color = '#e94560';
+      document.getElementById('sent-msg').textContent = 'Errou! 😅';
+    }
+    document.getElementById('sent-total').textContent = `Total: ⭐ ${myScore} pts`;
+  }
+</script>
+</body>
+</html>
