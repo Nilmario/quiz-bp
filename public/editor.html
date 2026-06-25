@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Editor de Perguntas — Quiz B+P</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;padding:28px}
+    h1{color:#e94560;font-size:2rem;margin-bottom:6px;text-align:center}
+    .top-bar{display:flex;align-items:center;justify-content:space-between;max-width:860px;margin:0 auto 24px;flex-wrap:wrap;gap:10px}
+    .top-bar h1{margin:0}
+    .btn{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff;border:none;border-radius:50px;padding:11px 28px;font-size:.9rem;font-weight:700;cursor:pointer;transition:transform .15s}
+    .btn:hover{transform:translateY(-2px)}
+    .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449)}
+    .btn.ghost{background:#16213e;border:2px solid #0f3460;box-shadow:none}
+    .btn.blue{background:linear-gradient(135deg,#1a6fbf,#0f4c8a)}
+    .btn-row{display:flex;gap:10px;flex-wrap:wrap}
+
+    /* LISTA */
+    #q-list{max-width:860px;margin:0 auto}
+    .q-card{background:#16213e;border:2px solid #0f3460;border-radius:14px;padding:18px 20px;margin-bottom:14px;position:relative;transition:border-color .2s}
+    .q-card:hover{border-color:#e94560}
+    .q-card-header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .q-num-badge{background:#e94560;border-radius:50%;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;flex-shrink:0}
+    .q-card label{color:#aaa;font-size:.78rem;display:block;margin-bottom:4px}
+    input[type=text],textarea{width:100%;background:#0f3460;border:1.5px solid #1a4a80;border-radius:8px;padding:9px 12px;color:#fff;font-size:.95rem;font-family:inherit;resize:vertical;outline:none;transition:border-color .2s}
+    input[type=text]:focus,textarea:focus{border-color:#e94560}
+    .opts-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .opt-wrap{position:relative}
+    .opt-wrap input{padding-right:38px}
+    .correct-radio{position:absolute;right:10px;top:50%;transform:translateY(-50%);cursor:pointer;width:18px;height:18px;accent-color:#2ecc71}
+    .correct-label{position:absolute;right:32px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#2ecc71;pointer-events:none;opacity:0;transition:opacity .2s}
+    .opt-wrap input:has(~.correct-radio:checked){border-color:#2ecc71;background:#0a3020}
+    .del-btn{background:none;border:none;color:#e94560;font-size:1.3rem;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s;margin-left:auto}
+    .del-btn:hover{background:#e9456022}
+    .drag-handle{cursor:grab;font-size:1.2rem;color:#555;flex-shrink:0}
+    .drag-handle:active{cursor:grabbing}
+    .q-card.drag-over{border-color:#f5a623;background:#1e2a4a}
+
+    /* STATUS */
+    #status-bar{position:fixed;bottom:20px;right:20px;background:#27ae60;color:#fff;padding:10px 22px;border-radius:30px;font-weight:700;font-size:.9rem;display:none;box-shadow:0 4px 18px #27ae6066;z-index:999}
+    #status-bar.err{background:#e94560}
+
+    /* ADD BUTTON */
+    .add-card{border:2px dashed #0f3460;border-radius:14px;padding:18px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;max-width:860px;margin:0 auto 30px}
+    .add-card:hover{border-color:#e94560;background:#16213e}
+    .add-card span{font-size:1.5rem}
+    .add-card p{color:#aaa;font-size:.9rem;margin-top:4px}
+
+    /* correct indicator colors per option */
+    .opt-wrap:nth-child(1) .correct-radio{accent-color:#e94560}
+    .opt-wrap:nth-child(2) .correct-radio{accent-color:#1a6fbf}
+    .opt-wrap:nth-child(3) .correct-radio{accent-color:#f5a623}
+    .opt-wrap:nth-child(4) .correct-radio{accent-color:#27ae60}
+    .opt-wrap:nth-child(1) input[type=text]{--c:#e94560}
+    .opt-correct-0{border-color:#e94560!important;background:#200a10!important}
+    .opt-correct-1{border-color:#1a6fbf!important;background:#0a1020!important}
+    .opt-correct-2{border-color:#f5a623!important;background:#1a1000!important}
+    .opt-correct-3{border-color:#27ae60!important;background:#0a2010!important}
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <h1>✏️ Editor de Perguntas</h1>
+  <div class="btn-row">
+    <button class="btn green" onclick="saveAll()">💾 Salvar Tudo</button>
+    <button class="btn blue" onclick="addQuestion()">➕ Nova Pergunta</button>
+    <button class="btn ghost" onclick="location.href='/monitor.html'">← Voltar</button>
+  </div>
+</div>
+
+<div id="q-list"></div>
+
+<div class="add-card" onclick="addQuestion()">
+  <span>➕</span>
+  <p>Clique para adicionar nova pergunta</p>
+</div>
+
+<div id="status-bar"></div>
+
+<script>
+  let questions = [];
+  let dragSrc   = null;
+
+  // ── Carrega perguntas da API ──
+  async function loadQuestions() {
+    const res  = await fetch('/api/questions');
+    questions  = await res.json();
+    renderAll();
+  }
+
+  function renderAll() {
+    const list = document.getElementById('q-list');
+    list.innerHTML = '';
+    questions.forEach((q, i) => list.appendChild(makeCard(q, i)));
+  }
+
+  function makeCard(q, i) {
+    const card = document.createElement('div');
+    card.className   = 'q-card';
+    card.draggable   = true;
+    card.dataset.idx = i;
+
+    // Garante 4 opções
+    while (q.options.length < 4) q.options.push('');
+
+    const optColors = ['#e94560','#1a6fbf','#f5a623','#27ae60'];
+    const optIcons  = ['▲','◆','●','■'];
+
+    card.innerHTML = `
+      <div class="q-card-header">
+        <span class="drag-handle" title="Arrastar para reordenar">⠿</span>
+        <div class="q-num-badge">${i + 1}</div>
+        <div style="flex:1">
+          <label>Pergunta</label>
+          <textarea rows="2" id="q-text-${i}">${escHtml(q.q)}</textarea>
+        </div>
+        <button class="del-btn" onclick="deleteQ(${i})" title="Excluir">🗑️</button>
+      </div>
+      <div class="opts-grid" id="opts-${i}">
+        ${q.options.map((opt, oi) => `
+          <div class="opt-wrap" id="ow-${i}-${oi}">
+            <label>${optIcons[oi]} Opção ${oi + 1}
+              ${q.correct === oi ? '<span style="color:#2ecc71;font-size:.75rem;margin-left:6px">✔ Correta</span>' : ''}
+            </label>
+            <input type="text" id="opt-${i}-${oi}" value="${escHtml(opt)}"
+              placeholder="Opção ${oi + 1}…"
+              class="${q.correct === oi ? `opt-correct-${oi}` : ''}"
+            />
+            <input type="radio" class="correct-radio" name="correct-${i}" value="${oi}"
+              ${q.correct === oi ? 'checked' : ''}
+              onchange="markCorrect(${i}, ${oi})"
+              title="Marcar como correta"
+            />
+          </div>`).join('')}
+      </div>`;
+
+    // Drag & Drop
+    card.addEventListener('dragstart', e => {
+      dragSrc = card;
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drag-over'));
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.classList.remove('drag-over');
+      if (!dragSrc || dragSrc === card) return;
+      const from = +dragSrc.dataset.idx;
+      const to   = +card.dataset.idx;
+      const item = questions.splice(from, 1)[0];
+      questions.splice(to, 0, item);
+      renderAll();
+    });
+
+    return card;
+  }
+
+  function markCorrect(qi, oi) {
+    questions[qi].correct = oi;
+    // Atualiza visual sem re-render total
+    const grid = document.getElementById(`opts-${qi}`);
+    grid.querySelectorAll('input[type=text]').forEach((inp, idx) => {
+      inp.className = idx === oi ? `opt-correct-${idx}` : '';
+    });
+    // Atualiza labels
+    const card = document.querySelector(`[data-idx="${qi}"]`);
+    card.querySelectorAll('.opt-wrap label').forEach((lbl, idx) => {
+      // Remove tag correta antiga
+      const tag = lbl.querySelector('span');
+      if (tag) tag.remove();
+      if (idx === oi) {
+        const s = document.createElement('span');
+        s.style.cssText = 'color:#2ecc71;font-size:.75rem;margin-left:6px';
+        s.textContent = '✔ Correta';
+        lbl.appendChild(s);
+      }
+    });
+  }
+
+  function addQuestion() {
+    questions.push({ q: '', options: ['', '', '', ''], correct: 0 });
+    renderAll();
+    // Scrolla para o fim
+    setTimeout(() => {
+      const cards = document.querySelectorAll('.q-card');
+      cards[cards.length - 1]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
+  }
+
+  function deleteQ(i) {
+    if (!confirm(`Excluir a pergunta ${i + 1}?`)) return;
+    questions.splice(i, 1);
+    renderAll();
+  }
+
+  async function saveAll() {
+    // Coleta valores dos inputs antes de salvar
+    document.querySelectorAll('.q-card').forEach((card, i) => {
+      const qi = +card.dataset.idx;
+      const txt = document.getElementById(`q-text-${qi}`);
+      if (txt) questions[qi].q = txt.value.trim();
+      for (let oi = 0; oi < 4; oi++) {
+        const inp = document.getElementById(`opt-${qi}-${oi}`);
+        if (inp) questions[qi].options[oi] = inp.value.trim();
+      }
+    });
+
+    // Valida
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.q) { showStatus(`Pergunta ${i+1} está sem texto!`, true); return; }
+      const filled = q.options.filter(o => o.trim());
+      if (filled.length < 2) { showStatus(`Pergunta ${i+1} precisa de ao menos 2 opções!`, true); return; }
+    }
+
+    try {
+      const res = await fetch('/api/questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(questions)
+      });
+      const json = await res.json();
+      if (json.ok) showStatus(`✅ ${questions.length} perguntas salvas com sucesso!`);
+      else showStatus('Erro ao salvar.', true);
+    } catch(e) {
+      showStatus('Erro de conexão com o servidor.', true);
+    }
+  }
+
+  function showStatus(msg, isErr = false) {
+    const bar = document.getElementById('status-bar');
+    bar.textContent  = msg;
+    bar.className    = isErr ? 'err' : '';
+    bar.style.display = 'block';
+    setTimeout(() => bar.style.display = 'none', 3500);
+  }
+
+  function escHtml(str) {
+    return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadQuestions();
+</script>
+</body>
+</html>
