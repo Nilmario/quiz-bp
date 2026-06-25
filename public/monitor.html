@@ -281,9 +281,9 @@
     currentOptions = d.options;
     currentCorrect = d.correct;
 
-    document.getElementById('q-num').textContent  = `${d.index + 1}/${d.total}`;
+    document.getElementById('q-num').textContent = `${d.index + 1}/${d.total}`;
 
-    // ✅ FIX 1: barra de progresso chega a 100% na última pergunta
+    // ✅ barra de progresso chega a 100% na última pergunta
     document.getElementById('q-bar').style.width = `${((d.index + 1) / d.total) * 100}%`;
 
     document.getElementById('q-text').textContent = d.question;
@@ -294,7 +294,7 @@
       const txt = d.options[i] || '';
       document.getElementById(`o${i}`).textContent = txt;
 
-      // ✅ FIX 2: esconde opções vazias (perguntas V/F têm só 2 opções)
+      // ✅ esconde opções vazias (perguntas V/F têm só 2 opções)
       o.style.display = txt ? 'flex' : 'none';
     });
 
@@ -304,7 +304,6 @@
   function updateTimer(t) {
     const el = document.getElementById('q-timer');
     el.textContent = t;
-    // ✅ FIX 3: não apaga a classe base do elemento, só alterna "urgent"
     if (t <= 5) {
       el.classList.add('urgent');
     } else {
@@ -317,7 +316,7 @@
 
   function showReveal(data) {
     document.querySelectorAll('.opt').forEach((o, i) => {
-      // ✅ FIX 4: só aplica classe em opções visíveis
+      // ✅ só aplica classe em opções visíveis
       if (o.style.display === 'none') return;
       o.classList.add(i === data.correct ? 'correct' : 'wrong');
     });
@@ -337,10 +336,13 @@
     container.innerHTML = '';
     if (!ranking.length) return;
 
-    const maxScore = Math.max(...ranking.map(p => p.score), 1);
-    const MIN_PCT  = 2;
-    const MAX_PCT  = 84;
     const DURATION = 3200;
+    const MIN_PCT  = 2;
+    const MAX_PCT  = 88;
+
+    // ✅ Ordena por score para calcular posição de cada jogador
+    const sorted = [...ranking].sort((a, b) => b.score - a.score);
+    const total  = sorted.length;
 
     ranking.forEach((p, i) => {
       const lane = document.createElement('div');
@@ -358,16 +360,28 @@
 
     requestAnimationFrame(() => requestAnimationFrame(() => {
       ranking.forEach((p, i) => {
-        const targetPct = MIN_PCT + Math.round((p.score / maxScore) * (MAX_PCT - MIN_PCT));
-        const hw        = document.getElementById(`hw-${i}`);
-        const scoreEl   = document.getElementById(`score-count-${i}`);
-        const delay     = i * 150;
+        // ✅ Posição no ranking: 1º avança mais, último avança menos
+        const pos      = sorted.findIndex(s => s.name === p.name) + 1;
+        const posRatio = 1 - ((pos - 1) / Math.max(total - 1, 1)); // 1.0 → 0.0
+
+        // ✅ Avança entre ~10% e ~88% da pista, proporcional à posição
+        const targetPct = MIN_PCT + Math.round(
+          posRatio * (MAX_PCT - MIN_PCT) * 0.45 +
+          (MAX_PCT - MIN_PCT) * 0.1
+        );
+
+        const hw      = document.getElementById(`hw-${i}`);
+        const scoreEl = document.getElementById(`score-count-${i}`);
+        const delay   = i * 150;
+
         setTimeout(() => {
           hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
           hw.style.left       = `${targetPct}%`;
         }, delay);
+
         setTimeout(() => animateCount(scoreEl, 0, p.score, DURATION), delay);
       });
+
       const totalDelay = DURATION + ranking.length * 150 + 500;
       setTimeout(() => {
         updatePositionBadges(ranking);
