@@ -45,39 +45,31 @@
     .opt.correct{box-shadow:0 0 28px #2ecc71;border:3px solid #2ecc71;transform:scale(1.02)}
     .opt.wrong{opacity:.22}
 
-    /* ══ CORRIDA ══ */
+    /* CORRIDA */
     #s-race{text-align:center}
     #s-race h2{font-size:2rem;color:#f5a623;margin-bottom:4px}
     .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:16px}
     .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:10px 22px;display:inline-block;margin-bottom:20px;font-size:1.05rem}
     .race-correct-box b{color:#2ecc71}
 
-    /* pista */
     .racetrack{position:relative;background:#0d1b3e;border-radius:20px;padding:20px 16px;overflow:hidden;max-width:900px;margin:0 auto 20px}
-    /* listras da pista */
     .racetrack::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);pointer-events:none}
-    /* linha de chegada */
-    .finish-line{position:absolute;right:20px;top:0;bottom:0;width:14px;
-      background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);
-      border-radius:4px;opacity:.7;z-index:2}
+    .finish-line{position:absolute;right:20px;top:0;bottom:0;width:14px;background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);border-radius:4px;opacity:.7;z-index:2}
     .finish-flag{position:absolute;right:6px;top:-10px;font-size:1.4rem;z-index:3}
 
     .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:10px;position:relative;height:52px}
     .race-lane:last-child{margin-bottom:0}
-
-    .lane-label{width:110px;font-size:.8rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.3}
+    .lane-label{width:120px;font-size:.8rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.5}
     .lane-label small{display:block;color:#f5a623;font-size:.72rem}
-
     .lane-road{flex:1;position:relative;height:44px;background:#16213e;border-radius:30px;overflow:visible}
-
-    /* trilhos */
     .lane-road::after{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)}
 
-    .horse-wrap{position:absolute;top:50%;transform:translateY(-50%);transition:left .9s cubic-bezier(.4,1.4,.6,1);z-index:4;display:flex;align-items:center;gap:2px}
+    .horse-wrap{position:absolute;top:50%;transform:translateY(-50%);z-index:4;display:flex;align-items:center;gap:2px}
     .horse-wrap .horse{font-size:1.9rem;line-height:1;filter:drop-shadow(0 0 6px rgba(245,166,35,.7))}
-    .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.65rem;font-weight:900;border-radius:30px;padding:1px 5px;white-space:nowrap}
+    .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.65rem;font-weight:900;border-radius:30px;padding:1px 5px;white-space:nowrap;opacity:0;transition:opacity .4s}
+    .horse-wrap .pos-badge.show{opacity:1}
 
-    /* ══ PÓDIO FINAL ══ */
+    /* PÓDIO FINAL */
     #s-final{text-align:center}
     #s-final h2{font-size:2.4rem;color:#f5a623;margin-bottom:10px}
     .podium-stage{display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:24px auto 30px;max-width:700px}
@@ -102,6 +94,7 @@
     .btn:hover{transform:translateY(-2px)}
     .btn.ghost{background:#16213e;box-shadow:none;border:2px solid #0f3460;color:#fff}
     .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449)}
+
     .btn-row{display:flex;gap:12px;justify-content:center;margin-top:18px;flex-wrap:wrap}
 
     /* TOAST */
@@ -167,7 +160,7 @@
     <div id="race-lanes"></div>
   </div>
   <div class="btn-row">
-    <button class="btn" id="btn-next-race" onclick="nextQ()">➡️ Próxima Pergunta</button>
+    <button class="btn" id="btn-next-race" onclick="nextQ()" style="display:none">➡️ Próxima Pergunta</button>
   </div>
 </div>
 
@@ -268,14 +261,11 @@
   }
 
   // ══════════════════════════════════════════════
-  //  CORRIDA DE CAVALINHOS
+  //  CORRIDA DE CAVALINHOS — ANIMAÇÃO SUAVE
   // ══════════════════════════════════════════════
-  const HORSES   = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇'];
-  const COLORS   = ['#e94560','#1a6fbf','#f5a623','#27ae60','#9b59b6','#1abc9c','#e67e22','#e91e8c'];
-  let   raceTimer = null;
+  const HORSES = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇'];
 
   function showReveal(data) {
-    // Marca opções na tela de pergunta
     document.querySelectorAll('.opt').forEach((o, i) => {
       if (!currentOptions[i]) return;
       o.classList.add(i === data.correct ? 'correct' : 'wrong');
@@ -283,38 +273,34 @@
 
     setTimeout(() => {
       show('s-race');
-      document.getElementById('race-answer-text').textContent = data.correctText || currentOptions[data.correct] || '';
+      document.getElementById('race-answer-text').textContent =
+        data.correctText || currentOptions[data.correct] || '';
+      document.getElementById('btn-next-race').style.display = 'none';
       document.getElementById('btn-next-race').textContent =
         data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
 
-      buildRace(data.ranking || []);
+      buildRace(data.ranking || [], data.isLast);
     }, 1600);
   }
 
-  function buildRace(ranking) {
+  function buildRace(ranking, isLast) {
     const container = document.getElementById('race-lanes');
     container.innerHTML = '';
-
     if (!ranking.length) return;
 
-    const maxScore = ranking[0].score || 1;
+    const maxScore = Math.max(...ranking.map(p => p.score), 1);
+    const MIN_PCT  = 2;
+    const MAX_PCT  = 84;
+    const DURATION = 3200; // duração da corrida em ms
 
-    // Calcula a pista disponível (px). Usamos % depois, mas precisamos do ref
-    // Usamos % mesmo: 0% = saída, 88% = chegada (deixa espaço pro emoji)
-    const MIN_PCT = 2;   // posição inicial
-    const MAX_PCT = 86;  // posição de chegada (1º lugar)
-
+    // Monta lanes com cavalinhos na largada
     ranking.forEach((p, i) => {
-      const pct = maxScore > 0
-        ? MIN_PCT + Math.round((p.score / maxScore) * (MAX_PCT - MIN_PCT))
-        : MIN_PCT;
-
       const lane = document.createElement('div');
       lane.className = 'race-lane';
       lane.innerHTML = `
         <div class="lane-label">
           ${p.name}
-          <small>⭐ ${p.score} pts</small>
+          <small>⭐ <span id="score-count-${i}">0</span> pts</small>
         </div>
         <div class="lane-road">
           <div class="horse-wrap" id="hw-${i}" style="left:${MIN_PCT}%">
@@ -325,34 +311,61 @@
       container.appendChild(lane);
     });
 
-    // Atualiza posições no ranking (baseado na pontuação)
-    updatePositionBadges(ranking);
-
-    // Anima cavalinhos até a posição final
-    clearTimeout(raceTimer);
+    // Aguarda o DOM renderizar e dispara a corrida
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      ranking.forEach((p, i) => {
-        const pct = maxScore > 0
-          ? MIN_PCT + Math.round((p.score / maxScore) * (MAX_PCT - MIN_PCT))
-          : MIN_PCT;
-        const hw = document.getElementById(`hw-${i}`);
-        if (hw) hw.style.left = `${pct}%`;
-      });
-    }));
 
-    // Para automaticamente após 6s
-    raceTimer = setTimeout(() => {
-      // Não faz nada — o botão "Próxima" fica disponível imediatamente
-    }, 6000);
+      ranking.forEach((p, i) => {
+        const targetPct = MIN_PCT + Math.round((p.score / maxScore) * (MAX_PCT - MIN_PCT));
+        const hw        = document.getElementById(`hw-${i}`);
+        const scoreEl   = document.getElementById(`score-count-${i}`);
+        const delay     = i * 150; // cada cavalo sai 150ms depois
+
+        // Ativa transição suave com delay
+        setTimeout(() => {
+          hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25, 0.46, 0.45, 0.94)`;
+          hw.style.left       = `${targetPct}%`;
+        }, delay);
+
+        // Contador de pontos sobe junto com o movimento
+        setTimeout(() => {
+          animateCount(scoreEl, 0, p.score, DURATION);
+        }, delay);
+      });
+
+      // Após todos chegarem: mostra badges e botão
+      const totalDelay = DURATION + ranking.length * 150 + 500;
+      setTimeout(() => {
+        updatePositionBadges(ranking);
+        document.getElementById('btn-next-race').style.display = 'inline-block';
+      }, totalDelay);
+
+    }));
+  }
+
+  // Anima número de 'from' até 'to' em 'duration' ms com ease-out
+  function animateCount(el, from, to, duration) {
+    if (!el) return;
+    const start = performance.now();
+    const range = to - from;
+    function step(now) {
+      const elapsed  = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased    = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+      el.textContent = Math.round(from + range * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
   }
 
   function updatePositionBadges(ranking) {
-    // Ordena por score para pegar posição real
     const sorted = [...ranking].sort((a, b) => b.score - a.score);
     ranking.forEach((p, i) => {
-      const pos = sorted.findIndex(s => s.name === p.name) + 1;
+      const pos   = sorted.findIndex(s => s.name === p.name) + 1;
       const badge = document.getElementById(`pos-${i}`);
-      if (badge) badge.textContent = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+      if (badge) {
+        badge.textContent = pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : `${pos}º`;
+        badge.classList.add('show');
+      }
     });
   }
 
@@ -368,10 +381,10 @@
     stage.innerHTML = '';
     rest.innerHTML  = '';
 
-    // Ordem visual do pódio: 2º | 1º | 3º
-    const podiumOrder  = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
-    const medals       = ['🥈','🥇','🥉'];
-    const heights      = ['110px','165px','80px'];
+    // Ordem visual: 2º | 1º | 3º
+    const podiumOrder = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
+    const medals      = ['🥈','🥇','🥉'];
+    const heights     = ['110px','165px','80px'];
 
     podiumOrder.forEach((p, vi) => {
       const block = document.createElement('div');
@@ -394,7 +407,7 @@
       rest.appendChild(row);
     });
 
-    // Animação: 3º → 2º → 1º (1º dispara confetti)
+    // Animação: 3º → 2º → 1º, depois confetti
     const blocks = stage.querySelectorAll('.podium-block');
     [2, 0, 1].forEach((bi, ti) => {
       setTimeout(() => {
