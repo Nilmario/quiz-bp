@@ -28,14 +28,17 @@ app.post('/api/questions/save', (req, res) => {
 // ── Estado do jogo ─────────────────────────────────────────────
 let gameCode          = null;
 let gameStarted       = false;
-let players           = {};
+let players           = {};          // playerId → dados
+let playerTokens      = {};          // token → playerId  ✅ NOVO: mapa de tokens
 let monitor           = null;
 let questions         = [];
 let qIndex            = 0;
 let timer             = null;
 let timeLeft          = 0;
 let revealDone        = false;
-let questionStartTime = 0; // ✅ momento em que a pergunta foi enviada
+let questionStartTime = 0;
+
+const RECONNECT_TTL = 5 * 60 * 1000; // 5 minutos para reconectar ✅
 
 function generateCode() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
@@ -70,23 +73,22 @@ function startTimer(limit) {
   stopTimer();
   timeLeft          = limit;
   revealDone        = false;
-  questionStartTime = Date.now(); // ✅ registra quando a pergunta começou
+  questionStartTime = Date.now();
 
   const tickAll = () => {
     sendMonitor({ type: 'tick', timeLeft });
-    Object.values(players).forEach(p => sendTo(p.ws, { type: 'tick', timeLeft }));
+    Object.values(players).forEach(p => {
+      if (p.ws && p.ws.readyState === 1) sendTo(p.ws, { type: 'tick', timeLeft });
+    });
   };
 
-  tickAll(); // envia imediatamente o valor inicial
-
+  tickAll();
   timer = setInterval(() => {
     timeLeft--;
     tickAll();
     if (timeLeft <= 0) revealAnswer();
   }, 1000);
 }
-
-// Substitua a função revealAnswer() no server.js
 
 function revealAnswer() {
   if (revealDone) return;
@@ -96,7 +98,6 @@ function revealAnswer() {
   const q      = questions[qIndex];
   const isLast = qIndex >= questions.length - 1;
 
-  // ✅ Monta objeto { "NomeJogador": pontosGanhosNestaRodada }
   const roundEarned = {};
   Object.values(players).forEach(p => {
     roundEarned[p.name] = p.lastEarned || 0;
@@ -107,7 +108,7 @@ function revealAnswer() {
     correct    : q.correct,
     correctText: q.options[q.correct],
     ranking    : ranking(),
-    roundEarned,          // ✅ novo campo
+    roundEarned,
     isLast
   });
 
@@ -123,7 +124,6 @@ function revealAnswer() {
   });
 }
 
-
 // ── WebSocket ───────────────────────────────────────────────────
 wss.on('connection', ws => {
   let playerId = null;
@@ -135,8 +135,23 @@ wss.on('connection', ws => {
   ws.on('close', () => {
     clearInterval(ping);
     if (playerId && players[playerId]) {
-      delete players[playerId];
+      // ✅ NÃO deleta o jogador — marca como desconectado e agenda limpeza
+      players[playerId].ws           = null;
+      players[playerId].disconnected = true;
+      players[playerId].disconnectedAt = Date.now();
+
       sendMonitor({ type: 'player_joined', players: playerList() });
+
+      // Remove o jogador se não reconectar em RECONNECT_TTL
+      players[playerId]._cleanupTimer = setTimeout(() => {
+        if (players[playerId]?.disconnected) {
+          // Remove token associado
+          const token = players[playerId].token;
+          if (token) delete playerTokens[token];
+          delete players[playerId];
+          sendMonitor({ type: 'player_joined', players: playerList() });
+        }
+      }, RECONNECT_TTL);
     }
   });
 
@@ -161,6 +176,56 @@ wss.on('connection', ws => {
       return;
     }
 
+    // ── ✅ RECONEXÃO: jogador envia token salvo ──
+    if (data.type === 'reconnect') {
+      const token = data.token;
+      const pid   = playerTokens[token];
+
+      if (!pid || !players[pid]) {
+        sendTo(ws, { type: 'reconnect_failed' });
+        return;
+      }
+
+      const p = players[pid];
+
+      // Cancela o timer de limpeza
+      if (p._cleanupTimer) { clearTimeout(p._cleanupTimer); p._cleanupTimer = null; }
+
+      // Restaura a conexão
+      p.ws           = ws;
+      p.disconnected = false;
+      playerId       = pid;
+
+      sendTo(ws, {
+        type  : 'reconnected',
+        name  : p.name,
+        score : p.score,
+        token // devolve o mesmo token
+      });
+
+      // Se uma pergunta está em andamento, reenvia a pergunta atual
+      if (gameStarted && questions.length && !revealDone) {
+        const q           = questions[qIndex];
+        const cleanOptions = q.options.filter(o => o && o.trim());
+        sendTo(ws, {
+          type     : 'question',
+          question : q.question,
+          options  : cleanOptions,
+          index    : qIndex,
+          total    : questions.length,
+          timeLimit: q.timeLimit || 30,
+          timeLeft  // ✅ envia o tempo restante atual
+        });
+        // Se já respondeu nesta rodada, informa
+        if (p.answered) {
+          sendTo(ws, { type: 'already_answered' });
+        }
+      }
+
+      sendMonitor({ type: 'player_joined', players: playerList() });
+      return;
+    }
+
     // ── Jogador entra ──
     if (data.type === 'join') {
       if (!gameCode || data.code?.toUpperCase() !== gameCode) {
@@ -176,9 +241,18 @@ wss.on('connection', ws => {
       const dup = Object.values(players).find(p => p.name.toLowerCase() === name.toLowerCase());
       if (dup) { sendTo(ws, { type: 'error', msg: 'Nome já em uso.' }); return; }
 
+      // ✅ Gera token único para este jogador
+      const token = crypto.randomBytes(16).toString('hex');
+
       playerId = crypto.randomUUID();
-      players[playerId] = { ws, name, score: 0, answered: false, lastAnswer: null, lastEarned: 0 };
-      sendTo(ws, { type: 'joined', name });
+      players[playerId] = {
+        ws, name, score: 0,
+        answered: false, lastAnswer: null, lastEarned: 0,
+        token, disconnected: false
+      };
+      playerTokens[token] = playerId;
+
+      sendTo(ws, { type: 'joined', name, token }); // ✅ envia token ao jogador
       sendMonitor({ type: 'player_joined', players: playerList() });
       return;
     }
@@ -204,15 +278,14 @@ wss.on('connection', ws => {
       p.lastAnswer = data.option;
 
       const q         = questions[qIndex];
-      const timeLimit = q.timeLimit || 20;
+      const timeLimit = q.timeLimit || 30; // ✅ padrão 30s
 
       if (data.option === q.correct) {
-        // ✅ Calcula tempo decorrido em segundos desde o início da pergunta
         const elapsed     = (Date.now() - questionStartTime) / 1000;
-        const timeBonus   = Math.max(0, timeLimit - elapsed);         // segundos restantes reais
+        const timeBonus   = Math.max(0, timeLimit - elapsed);
         const basePoints  = 500;
-        const bonusPoints = Math.round((timeBonus / timeLimit) * 500); // até +500 de bônus
-        const earned      = basePoints + bonusPoints;                  // entre 500 e 1000 pts
+        const bonusPoints = Math.round((timeBonus / timeLimit) * 500);
+        const earned      = basePoints + bonusPoints;
         p.score      += earned;
         p.lastEarned  = earned;
       } else {
@@ -247,21 +320,20 @@ wss.on('connection', ws => {
 
 function sendQuestion() {
   const q         = questions[qIndex];
-  const timeLimit = q.timeLimit || 20;
+  const timeLimit = q.timeLimit || 30; // ✅ padrão 30s
 
   Object.values(players).forEach(p => {
     p.answered   = false;
     p.lastAnswer = null;
-    p.lastEarned = 0; // ✅ reseta pontos da rodada anterior
+    p.lastEarned = 0;
   });
 
-  // ✅ limpa opções vazias antes de enviar (suporte a perguntas V/F)
   const cleanOptions = q.options.filter(o => o && o.trim());
 
   sendMonitor({
     type     : 'question',
     question : q.question,
-    options  : q.options,     // monitor recebe todas (inclusive vazias para layout)
+    options  : q.options,
     correct  : q.correct,
     index    : qIndex,
     total    : questions.length,
@@ -269,14 +341,16 @@ function sendQuestion() {
   });
 
   Object.values(players).forEach(p => {
-    sendTo(p.ws, {
-      type     : 'question',
-      question : q.question,
-      options  : cleanOptions, // jogador recebe só opções com texto
-      index    : qIndex,
-      total    : questions.length,
-      timeLimit
-    });
+    if (p.ws && p.ws.readyState === 1) {
+      sendTo(p.ws, {
+        type     : 'question',
+        question : q.question,
+        options  : cleanOptions,
+        index    : qIndex,
+        total    : questions.length,
+        timeLimit
+      });
+    }
   });
 
   startTimer(timeLimit);
@@ -285,10 +359,11 @@ function sendQuestion() {
 function resetAll() {
   stopTimer();
   Object.values(players).forEach(p => {
-    sendTo(p.ws, { type: 'kicked', msg: 'A sala foi reiniciada.' });
-    p.ws.close();
+    if (p._cleanupTimer) clearTimeout(p._cleanupTimer);
+    if (p.ws) { sendTo(p.ws, { type: 'kicked' }); p.ws.close(); }
   });
   players           = {};
+  playerTokens      = {}; // ✅ limpa tokens
   gameStarted       = false;
   gameCode          = null;
   qIndex            = 0;
@@ -302,9 +377,13 @@ function resetAll() {
 // ── Gerar código ──
 app.post('/api/new-code', (_, res) => {
   stopTimer();
+  Object.values(players).forEach(p => {
+    if (p._cleanupTimer) clearTimeout(p._cleanupTimer);
+  });
   gameCode          = generateCode();
   gameStarted       = false;
   players           = {};
+  playerTokens      = {}; // ✅ limpa tokens
   qIndex            = 0;
   revealDone        = false;
   timeLeft          = 0;
