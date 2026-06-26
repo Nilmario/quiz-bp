@@ -213,7 +213,7 @@ wss.on('connection', ws => {
           options  : cleanOptions,
           index    : qIndex,
           total    : questions.length,
-          timeLimit: q.timeLimit || 30,
+          timeLimit: q.timeLimit || 50,
           timeLeft  // ✅ envia o tempo restante atual
         });
         // Se já respondeu nesta rodada, informa
