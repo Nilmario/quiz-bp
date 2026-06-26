@@ -65,33 +65,94 @@
     .opt-bar{position:absolute;bottom:0;left:0;height:5px;background:rgba(255,255,255,.4);transition:width 1s ease;width:0%}
     .opt-vote-count{margin-left:auto;font-size:.85rem;opacity:.8;flex-shrink:0}
 
-    /* ── CORRIDA ── */
+    /* ── RANKING ── */
     #s-race{text-align:center}
     #s-race h2{font-size:2rem;color:#f5a623;margin-bottom:4px}
-    .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:12px}
-    .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:8px 18px;display:inline-block;margin-bottom:14px;font-size:1rem}
+    .race-subtitle{color:#aaa;font-size:.9rem;margin-bottom:10px}
+    .race-correct-box{background:#16213e;border:2px solid #2ecc71;border-radius:12px;padding:8px 18px;display:inline-block;margin-bottom:18px;font-size:1rem}
     .race-correct-box b{color:#2ecc71}
-    .racetrack{position:relative;background:#0d1b3e;border-radius:20px;padding:12px 16px;overflow-y:auto;overflow-x:hidden;max-width:1000px;max-height:72vh;margin:0 auto 16px;scrollbar-width:thin;scrollbar-color:#0f3460 #0d1b3e}
-    .racetrack::-webkit-scrollbar{width:6px}
-    .racetrack::-webkit-scrollbar-thumb{background:#0f3460;border-radius:3px}
-    .racetrack::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 48px,rgba(255,255,255,.04) 48px,rgba(255,255,255,.04) 50px);pointer-events:none}
-    .finish-line{position:sticky;right:0;top:0;bottom:0;width:14px;float:right;height:100%;background:repeating-linear-gradient(180deg,#fff 0,#fff 7px,#111 7px,#111 14px);border-radius:4px;opacity:.7;z-index:2;pointer-events:none}
-    .race-lane{display:flex;align-items:center;gap:10px;margin-bottom:10px;will-change:transform}
-    .lane-label{width:100px;font-size:.68rem;font-weight:600;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;color:#ccc;line-height:1.4;position:relative;z-index:1}
-    .lane-label small{display:block;color:#f5a623;font-size:.65rem}
-    .lane-road{flex:1;position:relative;height:38px;background:#16213e;border-radius:30px;overflow:hidden}
-    .lane-road::after{content:'';position:absolute;top:50%;left:0;right:0;height:2px;background:rgba(255,255,255,.08);transform:translateY(-50%)}
-    .horse-wrap{position:absolute;top:50%;transform:translateY(-50%);z-index:4;display:flex;align-items:center;gap:2px}
-    .horse-wrap .horse{font-size:1.45rem;line-height:1;filter:drop-shadow(0 0 5px rgba(245,166,35,.7));transform:scaleX(-1);display:inline-block}
-    .horse-wrap.parado .horse{filter:drop-shadow(0 0 3px rgba(150,150,150,.4));opacity:0.45}
-    .horse-wrap .pos-badge{background:#f5a623;color:#1a1a2e;font-size:.6rem;font-weight:900;border-radius:30px;padding:1px 4px;white-space:nowrap;opacity:0;transition:opacity .4s}
-    .horse-wrap .pos-badge.show{opacity:1}
-    .pts-float{position:absolute;top:-8px;font-size:.75rem;font-weight:900;color:#2ecc71;text-shadow:0 0 8px #2ecc71;animation:floatUp 1.8s ease forwards;pointer-events:none;z-index:10;white-space:nowrap}
-    @keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-36px)}}
-    @keyframes laneUp{0%{background:rgba(46,204,113,0)}50%{background:rgba(46,204,113,.12)}100%{background:rgba(46,204,113,0)}}
-    @keyframes laneDown{0%{background:rgba(233,69,96,0)}50%{background:rgba(233,69,96,.10)}100%{background:rgba(233,69,96,0)}}
-    .lane-moving-up{animation:laneUp 0.8s ease}
-    .lane-moving-down{animation:laneDown 0.8s ease}
+
+    /* container com altura fixa para animar posições */
+    #ranking-wrap{
+      position:relative;
+      max-width:780px;
+      margin:0 auto 18px;
+      /* altura calculada via JS */
+    }
+
+    .rank-card{
+      position:absolute;
+      left:0; right:0;
+      display:flex;
+      align-items:center;
+      gap:12px;
+      background:#16213e;
+      border-radius:14px;
+      padding:10px 18px;
+      transition:top .7s cubic-bezier(0.34,1.56,0.64,1),
+                 background .4s;
+      will-change:top;
+    }
+    .rank-card.gained{ animation:flashGreen .7s ease; }
+    .rank-card.lost  { animation:flashRed   .7s ease; }
+    @keyframes flashGreen{0%{background:#16213e}50%{background:#1a4a2a}100%{background:#16213e}}
+    @keyframes flashRed  {0%{background:#16213e}50%{background:#3a1a22}100%{background:#16213e}}
+
+    .rank-pos{
+      font-size:1.4rem;
+      width:44px;
+      text-align:center;
+      flex-shrink:0;
+      font-weight:900;
+    }
+    .rank-avatar{font-size:1.6rem;flex-shrink:0}
+    .rank-name{
+      flex:1;
+      font-size:1rem;
+      font-weight:700;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    /* barra de progresso interna */
+    .rank-bar-wrap{
+      width:160px;
+      height:8px;
+      background:#0f3460;
+      border-radius:30px;
+      overflow:hidden;
+      flex-shrink:0;
+    }
+    .rank-bar-fill{
+      height:100%;
+      border-radius:30px;
+      background:linear-gradient(90deg,#e94560,#f5a623);
+      transition:width .8s ease;
+    }
+    .rank-pts{
+      font-size:1rem;
+      font-weight:900;
+      color:#f5a623;
+      width:80px;
+      text-align:right;
+      flex-shrink:0;
+    }
+    /* delta +pontos flutuando */
+    .pts-float{
+      position:absolute;
+      right:18px;
+      font-size:.8rem;
+      font-weight:900;
+      color:#2ecc71;
+      text-shadow:0 0 8px #2ecc71;
+      animation:floatUp 1.6s ease forwards;
+      pointer-events:none;
+      z-index:20;
+    }
+    @keyframes floatUp{
+      0%  {opacity:1;transform:translateY(0)}
+      100%{opacity:0;transform:translateY(-32px)}
+    }
 
     /* ── PÓDIO FINAL ── */
     #s-final{text-align:center;position:relative;z-index:1}
@@ -111,10 +172,10 @@
     @media(max-width:600px){.podium-rest{grid-template-columns:1fr}}
     .rank-row{display:flex;align-items:center;gap:10px;background:#16213e;border-radius:12px;padding:10px 16px;opacity:0;transform:translateX(-30px);transition:opacity .4s ease,transform .4s ease}
     .rank-row.show{opacity:1;transform:translateX(0)}
-    .rank-pos{font-size:1.3rem;width:36px}
-    .rank-name{flex:1;font-size:.95rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .rank-pts{color:#2ecc71;font-size:.9rem;font-weight:700;white-space:nowrap}
-    .rank-acc{color:#aaa;font-size:.8rem;margin-left:8px;white-space:nowrap}
+    .rank-row-pos{font-size:1.3rem;width:36px}
+    .rank-row-name{flex:1;font-size:.95rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .rank-row-pts{color:#2ecc71;font-size:.9rem;font-weight:700;white-space:nowrap}
+    .rank-row-acc{color:#aaa;font-size:.8rem;margin-left:8px;white-space:nowrap}
 
     /* ── BOTÕES ── */
     .btn{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff;border:none;border-radius:50px;padding:13px 34px;font-size:.95rem;font-weight:700;cursor:pointer;box-shadow:0 4px 18px #e9456044;transition:transform .2s,box-shadow .2s}
@@ -195,15 +256,12 @@
   </div>
 </div>
 
-<!-- ══ CORRIDA ══ -->
+<!-- ══ RANKING ══ -->
 <div class="screen" id="s-race">
-  <h2>🏇 Corrida dos Campeões!</h2>
-  <p class="race-subtitle">Placar após esta rodada</p>
+  <h2>📊 Placar da Rodada</h2>
+  <p class="race-subtitle">Ranking atualizado</p>
   <div class="race-correct-box">✅ Resposta correta: <b id="race-answer-text"></b></div>
-  <div class="racetrack">
-    <div class="finish-line"></div>
-    <div id="race-lanes"></div>
-  </div>
+  <div id="ranking-wrap"></div>
   <div class="btn-row">
     <button class="btn" id="btn-next-race" onclick="nextQ()" style="display:none">➡️ Próxima Pergunta</button>
   </div>
@@ -243,42 +301,39 @@
   }
   buildQR();
 
-  // ── Constantes da pista ──
-  const MIN_PCT   = 2;
-  const MAX_PCT   = 85;
-  const LANE_HEIGHT = 48; // px — altura de cada lane (margin-bottom:10 + height:38)
+  // ── Constantes ──
+  const CARD_HEIGHT = 62; // px — altura do card + gap
+  const ANIM_MOVE   = 700; // ms transição vertical
 
   // ── Estado global ──
   let ws;
-  let totalPlayers   = 0;
-  let answeredCount  = 0;
-  let currentOptions = [];
-  let currentCorrect = 0;
+  let totalPlayers     = 0;
+  let answeredCount    = 0;
+  let currentOptions   = [];
+  let currentCorrect   = 0;
   let currentTimeLimit = 20;
   let totalQuestions   = 1;
-  let previousRankOrder = [];
+  let previousOrder    = []; // nomes na ordem anterior para diff
 
-  const playerStats    = {};  // { name: { correct, total } }
+  const playerStats    = {};
   const playerEmojiMap = {};
-  const playerHorseMap = {};
 
   const PLAYER_EMOJIS = ['🦁','🐯','🦊','🐺','🐸','🦅','🐬','🦋','🐉','🦄','🐙','🦖','🐧','🦩','🐝','🦚','🐻','🦇','🦜','🐳','🐮','🐼','🦥','🐨'];
-  const HORSES        = ['🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄','🐎','🏇','🐴','🦄'];
 
   // ── WebSocket ──
   function connect() {
     ws = new WebSocket(wsUrl);
     ws.onopen    = () => ws.send(JSON.stringify({ type:'monitor_connect' }));
-    ws.onmessage = e  => { try { handle(JSON.parse(e.data)); } catch(err) { console.error('WS parse error', err); } };
+    ws.onmessage = e  => { try { handle(JSON.parse(e.data)); } catch(err) { console.error('WS parse:', err); } };
     ws.onclose   = () => setTimeout(connect, 2000);
-    ws.onerror   = err => console.error('WS error', err);
+    ws.onerror   = err => console.error('WS error:', err);
   }
 
   function send(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
   }
 
-  // ── Roteador de mensagens ──
+  // ── Roteador ──
   function handle(data) {
     switch (data.type) {
       case 'state':
@@ -317,7 +372,7 @@
     }
   }
 
-  // ── Utilitários de tela ──
+  // ── Utilitários ──
   function show(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -328,13 +383,14 @@
   }
 
   function getEmoji(name) {
-    if (!playerEmojiMap[name]) playerEmojiMap[name] = PLAYER_EMOJIS[Object.keys(playerEmojiMap).length % PLAYER_EMOJIS.length];
+    if (!playerEmojiMap[name]) {
+      playerEmojiMap[name] = PLAYER_EMOJIS[Object.keys(playerEmojiMap).length % PLAYER_EMOJIS.length];
+    }
     return playerEmojiMap[name];
   }
 
-  function getHorse(name) {
-    if (!playerHorseMap[name]) playerHorseMap[name] = HORSES[Object.keys(playerHorseMap).length % HORSES.length];
-    return playerHorseMap[name];
+  function safeName(name) {
+    return name.replace(/[^a-zA-Z0-9]/g, '_');
   }
 
   // ── Players ──
@@ -346,7 +402,7 @@
     document.getElementById('btn-start').disabled = list.length === 0;
   }
 
-  // ── Reset completo ──
+  // ── Reset ──
   function fullReset() {
     show('s-lobby');
     document.getElementById('code-display').textContent = '——';
@@ -355,9 +411,8 @@
     stopConfetti(); stopFireworks();
     Object.keys(playerStats).forEach(k    => delete playerStats[k]);
     Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
-    Object.keys(playerHorseMap).forEach(k => delete playerHorseMap[k]);
-    previousRankOrder = [];
-    totalQuestions    = 1;
+    previousOrder  = [];
+    totalQuestions = 1;
   }
 
   // ── Ações ──
@@ -372,10 +427,10 @@
     } catch(e) { toast('Erro ao gerar código'); }
   }
 
-  function startGame()  { playCountdown(() => send({ type:'start_game' })); }
-  function nextQ()      { send({ type:'next_question' }); }
-  function forceReveal(){ send({ type:'reveal_answer' }); }
-  function resetGame()  { send({ type:'reset_game' }); }
+  function startGame()   { playCountdown(() => send({ type:'start_game' })); }
+  function nextQ()       { send({ type:'next_question' }); }
+  function forceReveal() { send({ type:'reveal_answer' }); }
+  function resetGame()   { send({ type:'reset_game' }); }
 
   // ── Countdown ──
   function playCountdown(cb) {
@@ -399,7 +454,7 @@
   }
 
   // ── Timer ──
-  const CIRCUMFERENCE = 2 * Math.PI * 34; // ~213.6
+  const CIRCUMFERENCE = 2 * Math.PI * 34;
   function updateTimer(t) {
     const el   = document.getElementById('q-timer-text');
     const arc  = document.getElementById('timer-arc');
@@ -415,29 +470,27 @@
   function showQuestion(d) {
     show('s-question');
     answeredCount    = 0;
-    currentOptions   = d.options  || [];
-    currentCorrect   = d.correct  ?? 0;
+    currentOptions   = d.options   || [];
+    currentCorrect   = d.correct   ?? 0;
     currentTimeLimit = d.timeLimit || 20;
-    totalQuestions   = d.total    || 1;
+    totalQuestions   = d.total     || 1;
 
     document.getElementById('q-num').textContent      = `${d.index + 1}/${d.total}`;
     document.getElementById('q-bar').style.width      = `${((d.index + 1) / d.total) * 100}%`;
     document.getElementById('q-text').textContent     = d.question;
     document.getElementById('q-answered').textContent = `✅ 0/${totalPlayers}`;
 
-    // Reinicia o arco do timer
     const arc = document.getElementById('timer-arc');
     arc.style.transition       = 'none';
     arc.style.strokeDashoffset = '0';
     document.getElementById('timer-wrap').classList.remove('urgent');
-    void arc.offsetWidth; // força reflow
+    void arc.offsetWidth;
     arc.style.transition = '';
 
-    // Atualiza opções
     document.querySelectorAll('.opt').forEach((o, i) => {
       o.className = 'opt';
       const txt = d.options[i] || '';
-      document.getElementById(`o${i}`).textContent  = txt;
+      document.getElementById(`o${i}`).textContent   = txt;
       document.getElementById(`bar${i}`).style.width = '0%';
       document.getElementById(`vc${i}`).textContent  = '';
       o.style.display = txt ? 'flex' : 'none';
@@ -446,33 +499,33 @@
     updateTimer(d.timeLimit);
   }
 
-  // ── Revelar resposta ──
+  // ── Revelar ──
   function showReveal(data) {
-    // Atualiza stats de acerto
+    // Atualiza stats
     (data.ranking || []).forEach(p => {
       if (!playerStats[p.name]) playerStats[p.name] = { correct:0, total:0 };
       playerStats[p.name].total++;
       if ((data.roundEarned?.[p.name] ?? 0) > 0) playerStats[p.name].correct++;
     });
 
-    // Mostra barras de votos
+    // Barras de votos
     showVoteBars(data);
 
-    // Destaca opção correta/errada
+    // Destaca opções
     document.querySelectorAll('.opt').forEach((o, i) => {
       if (o.style.display === 'none') return;
       o.classList.add(i === data.correct ? 'correct' : 'wrong');
     });
 
-    // Após 2.2 s vai para a corrida
+    // Vai para o ranking após 2.2 s
     setTimeout(() => {
       show('s-race');
       document.getElementById('race-answer-text').textContent =
         data.correctText || currentOptions[data.correct] || '';
-      document.getElementById('btn-next-race').style.display   = 'none';
-      document.getElementById('btn-next-race').textContent     =
+      document.getElementById('btn-next-race').style.display  = 'none';
+      document.getElementById('btn-next-race').textContent    =
         data.isLast ? '🏆 Ver Resultado Final' : '➡️ Próxima Pergunta';
-      buildRace(data.ranking || [], data.roundEarned || {});
+      buildRanking(data.ranking || [], data.roundEarned || {});
     }, 2200);
   }
 
@@ -481,7 +534,7 @@
     const total        = (data.ranking || []).length;
     const correctCount = Object.values(data.roundEarned || {}).filter(v => v > 0).length;
     const wrongCount   = total - correctCount;
-    const visibleOpts  = document.querySelectorAll('#q-opts .opt:not([style*="display: none"]):not([style*="display:none"])');
+    const visibleOpts  = [...document.querySelectorAll('#q-opts .opt')].filter(o => o.style.display !== 'none');
     const wrongSlots   = Math.max(visibleOpts.length - 1, 1);
 
     document.querySelectorAll('.opt').forEach((o, i) => {
@@ -499,170 +552,121 @@
     });
   }
 
-  // ── Corrida ──
-  function buildRace(ranking, roundEarned) {
-    const container = document.getElementById('race-lanes');
-    container.innerHTML = '';
+  // ══════════════════════════════════════════════
+  //  RANKING ANIMADO — sem cavalo, só cards
+  // ══════════════════════════════════════════════
+  function buildRanking(ranking, roundEarned) {
+    const wrap = document.getElementById('ranking-wrap');
+    wrap.innerHTML = '';
+
     if (!ranking.length) {
       document.getElementById('btn-next-race').style.display = 'inline-block';
       return;
     }
 
-    const DURATION = 3000;
-
     // Ordena por score decrescente
-    const sorted = [...ranking].sort((a, b) => b.score - a.score);
+    const sorted   = [...ranking].sort((a, b) => b.score - a.score);
+    const maxScore = sorted[0].score || 1;
 
-    // Escala dinâmica: o líder atual nunca passa de MAX_PCT
-    const maxScore    = sorted[0].score || 1;
-    const pctPorPonto = (MAX_PCT - MIN_PCT) / maxScore;
-
-    // Monta ordem anterior (primeira rodada = ordem atual)
-    const prevOrder = previousRankOrder.length
-      ? [...previousRankOrder]
+    // Se não há ordem anterior, usa a atual como base
+    const prevOrder = previousOrder.length
+      ? [...previousOrder]
       : sorted.map(p => p.name);
 
-    // Garante que novos jogadores entrem no fim
+    // Garante que novos jogadores apareçam no fim
     sorted.forEach(p => { if (!prevOrder.includes(p.name)) prevOrder.push(p.name); });
 
-    // ── Renderiza na ordem ANTERIOR ──
-    prevOrder.forEach(name => {
+    // ── 1. Cria os cards na posição ANTERIOR (para poder animar) ──
+    wrap.style.height = `${sorted.length * CARD_HEIGHT}px`;
+
+    prevOrder.forEach((name, oldIdx) => {
       const p = sorted.find(x => x.name === name);
       if (!p) return;
-      const earned     = roundEarned[p.name] ?? 0;
-      const scoreAntes = p.score - earned;
-      const prevPct    = Math.min(MIN_PCT + scoreAntes * pctPorPonto, MAX_PCT);
-      const key        = safeName(name);
 
-      const lane = document.createElement('div');
-      lane.className = 'race-lane';
-      lane.id        = `lane-${key}`;
-      lane.innerHTML = laneTpl(p, key, prevPct, earned, scoreAntes);
-      container.appendChild(lane);
+      const earned     = roundEarned[p.name] ?? 0;
+      const scoreBefore = p.score - earned;
+      const pctBefore  = maxScore > 0 ? (scoreBefore / maxScore) * 100 : 0;
+      const key        = safeName(name);
+      const medal      = oldIdx === 0 ? '🥇' : oldIdx === 1 ? '🥈' : oldIdx === 2 ? '🥉' : `${oldIdx+1}º`;
+
+      const card = document.createElement('div');
+      card.className = 'rank-card';
+      card.id        = `rc-${key}`;
+      card.style.top = `${oldIdx * CARD_HEIGHT}px`;
+      card.innerHTML = `
+        <div class="rank-pos" id="rpos-${key}">${medal}</div>
+        <div class="rank-avatar">${getEmoji(name)}</div>
+        <div class="rank-name">${name}</div>
+        <div class="rank-bar-wrap">
+          <div class="rank-bar-fill" id="rbar-${key}" style="width:${pctBefore}%"></div>
+        </div>
+        <div class="rank-pts" id="rpts-${key}">${scoreBefore}</div>`;
+      wrap.appendChild(card);
     });
 
-    document.querySelector('.racetrack').scrollTop = 0;
-
-    // Aguarda dois frames para garantir que o DOM foi pintado
+    // ── 2. Anima: pontos → barra → movimento vertical ──
     requestAnimationFrame(() => requestAnimationFrame(() => {
 
-      // ── FASE 1: animação horizontal ──
-      sorted.forEach(p => {
-        const key       = safeName(p.name);
-        const hw        = document.getElementById(`hw-${key}`);
-        const road      = document.getElementById(`road-${key}`);
-        if (!hw || !road) return;
+      sorted.forEach((p, newIdx) => {
+        const key    = safeName(p.name);
+        const card   = document.getElementById(`rc-${key}`);
+        const ptsEl  = document.getElementById(`rpts-${key}`);
+        const barEl  = document.getElementById(`rbar-${key}`);
+        const posEl  = document.getElementById(`rpos-${key}`);
+        if (!card) return;
 
-        const earned    = roundEarned[p.name] ?? 0;
-        const targetPct = Math.min(MIN_PCT + p.score * pctPorPonto, MAX_PCT);
+        const earned  = roundEarned[p.name] ?? 0;
+        const pctNew  = maxScore > 0 ? (p.score / maxScore) * 100 : 0;
+        const oldIdx  = prevOrder.indexOf(p.name);
+        const moved   = newIdx - oldIdx; // negativo = subiu, positivo = desceu
 
+        // Anima contador de pontos
         if (earned > 0) {
-          hw.classList.remove('parado');
-          hw.style.transition = `left ${DURATION}ms cubic-bezier(0.25,0.46,0.45,0.94)`;
-          hw.style.left       = `${targetPct}%`;
+          animateCounter(ptsEl, p.score - earned, p.score, 800);
 
-          // Pontos flutuantes
-          setTimeout(() => {
-            if (!document.getElementById(`road-${key}`)) return;
-            const fl = document.createElement('div');
-            fl.className   = 'pts-float';
-            fl.textContent = `+${earned} pts`;
-            fl.style.left  = `${targetPct}%`;
-            road.appendChild(fl);
-            setTimeout(() => fl.remove(), 1900);
-          }, DURATION * 0.6);
-
-          // Contador de pontos
-          animateScore(key, p.score - earned, p.score, DURATION);
-        } else {
-          hw.style.transition = 'none';
-          hw.style.left       = `${targetPct}%`;
-          hw.classList.add('parado');
+          // Delta flutuante
+          const fl = document.createElement('div');
+          fl.className   = 'pts-float';
+          fl.textContent = `+${earned}`;
+          fl.style.top   = `${oldIdx * CARD_HEIGHT + 10}px`;
+          wrap.appendChild(fl);
+          setTimeout(() => fl.remove(), 1700);
         }
+
+        // Anima barra de progresso
+        setTimeout(() => {
+          if (barEl) barEl.style.width = `${pctNew}%`;
+        }, 300);
+
+        // Move card para nova posição
+        setTimeout(() => {
+          card.style.top = `${newIdx * CARD_HEIGHT}px`;
+
+          // Flash de cor
+          if (moved < 0) { card.classList.remove('lost');  card.classList.add('gained'); }
+          if (moved > 0) { card.classList.remove('gained');card.classList.add('lost'); }
+
+          // Atualiza medalha/posição
+          const newMedal = newIdx===0?'🥇':newIdx===1?'🥈':newIdx===2?'🥉':`${newIdx+1}º`;
+          if (posEl) posEl.textContent = newMedal;
+        }, 500);
       });
 
-      // ── FASE 2: reordenação vertical (após animação horizontal) ──
+      // Botão aparece após as animações
       setTimeout(() => {
-        // Mapa posição nova
-        const newIndexMap = {};
-        sorted.forEach((p, i) => { newIndexMap[p.name] = i; });
-
-        prevOrder.forEach(name => {
-          const key  = safeName(name);
-          const lane = document.getElementById(`lane-${key}`);
-          if (!lane) return;
-          const oldIdx = prevOrder.indexOf(name);
-          const newIdx = newIndexMap[name] ?? oldIdx;
-          const delta  = (newIdx - oldIdx) * LANE_HEIGHT;
-          if (delta !== 0) {
-            lane.style.transition = `transform 0.7s cubic-bezier(0.34,1.56,0.64,1)`;
-            lane.style.transform  = `translateY(${delta}px)`;
-            lane.style.zIndex     = delta < 0 ? '10' : '1';
-            lane.classList.remove('lane-moving-up','lane-moving-down');
-            void lane.offsetWidth;
-            lane.classList.add(delta < 0 ? 'lane-moving-up' : 'lane-moving-down');
-          }
-        });
-
-        // ── FASE 3: rebuild final na ordem certa ──
-        setTimeout(() => {
-          container.innerHTML = '';
-          sorted.forEach((p, idx) => {
-            const earned    = roundEarned[p.name] ?? 0;
-            const targetPct = Math.min(MIN_PCT + p.score * pctPorPonto, MAX_PCT);
-            const key       = safeName(p.name);
-            const badge     = idx===0?'🥇':idx===1?'🥈':idx===2?'🥉':`${idx+1}º`;
-
-            const lane = document.createElement('div');
-            lane.className = 'race-lane';
-            lane.id        = `lane-${key}`;
-            lane.innerHTML = laneTplFinal(p, key, targetPct, earned, badge);
-            container.appendChild(lane);
-          });
-          document.getElementById('btn-next-race').style.display = 'inline-block';
-        }, 850);
-
-      }, DURATION + 300);
+        document.getElementById('btn-next-race').style.display = 'inline-block';
+      }, 500 + ANIM_MOVE + 200);
 
     }));
 
-    // Salva ordem para a próxima rodada
-    previousRankOrder = sorted.map(p => p.name);
+    // Salva ordem atual para a próxima rodada
+    previousOrder = sorted.map(p => p.name);
   }
 
-  // Templates de lane
-  function laneTpl(p, key, pct, earned, scoreAntes) {
-    return `
-      <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${key}">${scoreAntes}</span> pts</small></div>
-      <div class="lane-road" id="road-${key}">
-        <div class="horse-wrap ${earned > 0 ? '' : 'parado'}" id="hw-${key}" style="left:${pct}%;transition:none">
-          <span class="horse">${getHorse(p.name)}</span>
-          <span class="pos-badge" id="pos-${key}"></span>
-        </div>
-      </div>`;
-  }
-
-  function laneTplFinal(p, key, pct, earned, badge) {
-    return `
-      <div class="lane-label">${getEmoji(p.name)} ${p.name}<small>⭐ <span id="score-count-${key}">${p.score}</span> pts</small></div>
-      <div class="lane-road" id="road-${key}">
-        <div class="horse-wrap ${earned === 0 ? 'parado' : ''}" id="hw-${key}" style="left:${pct}%;transition:none">
-          <span class="horse">${getHorse(p.name)}</span>
-          <span class="pos-badge show" id="pos-${key}">${badge}</span>
-        </div>
-      </div>`;
-  }
-
-  // Converte nome em ID seguro para DOM
-  function safeName(name) {
-    return name.replace(/[^a-zA-Z0-9]/g, '_');
-  }
-
-  // Animação do contador de pontos
-  function animateScore(key, from, to, duration) {
-    const el = document.getElementById(`score-count-${key}`);
+  // Contador numérico animado
+  function animateCounter(el, from, to, duration) {
     if (!el) return;
-    const steps    = 40;
+    const steps    = 30;
     const stepTime = duration / steps;
     const diff     = to - from;
     let step = 0;
@@ -684,7 +688,7 @@
     stage.innerHTML = rest.innerHTML = '';
 
     // Ordem visual: 2º | 1º | 3º
-    const top3  = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
+    const top3    = [ranking[1], ranking[0], ranking[2]].filter(Boolean);
     const medals  = ['🥈','🥇','🥉'];
     const heights = ['110px','165px','80px'];
 
@@ -705,22 +709,22 @@
     ranking.slice(3).forEach((p, i) => {
       const stats = playerStats[p.name] || { correct:0, total:0 };
       const acc   = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
-      const row = document.createElement('div');
+      const row   = document.createElement('div');
       row.className = 'rank-row';
       row.innerHTML = `
-        <div class="rank-pos">${i+4}º</div>
-        <div class="rank-name">${getEmoji(p.name)} ${p.name}</div>
-        <div class="rank-pts">⭐ ${p.score} pts</div>
-        <div class="rank-acc">🎯 ${acc}%</div>`;
+        <div class="rank-row-pos">${i+4}º</div>
+        <div class="rank-row-name">${getEmoji(p.name)} ${p.name}</div>
+        <div class="rank-row-pts">⭐ ${p.score} pts</div>
+        <div class="rank-row-acc">🎯 ${acc}%</div>`;
       rest.appendChild(row);
     });
 
-    // Animações do pódio: 3º → 2º → 1º (centro)
+    // Animações: 3º → 2º → 1º
     const blocks = stage.querySelectorAll('.podium-block');
     [2, 0, 1].forEach((bi, ti) => {
       setTimeout(() => {
         if (blocks[bi]) blocks[bi].classList.add('show');
-        if (bi === 1) { startConfetti(); startFireworks(); } // efeitos no 1º lugar
+        if (bi === 1) { startConfetti(); startFireworks(); }
       }, 400 + ti * 700);
     });
 
@@ -769,9 +773,9 @@
   }
 
   // ── Fogos ──
-  const fwCanvas    = document.getElementById('fireworks-canvas');
-  const fwCtx       = fwCanvas.getContext('2d');
-  let fwParticles   = [], fwAnimId = null, fwLaunchTimer = null, fwStopTimer = null;
+  const fwCanvas  = document.getElementById('fireworks-canvas');
+  const fwCtx     = fwCanvas.getContext('2d');
+  let fwParticles = [], fwAnimId = null, fwLaunchTimer = null, fwStopTimer = null;
 
   function startFireworks() {
     stopFireworks();
@@ -811,7 +815,14 @@
     for (let i = 0; i < 80; i++) {
       const angle = (Math.PI * 2 / 80) * i;
       const speed = 2 + Math.random() * 4;
-      fwParticles.push({ x, y, vx:Math.cos(angle)*speed, vy:Math.sin(angle)*speed, r:2+Math.random()*3, hue:hue+Math.random()*40, alpha:1 });
+      fwParticles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        r: 2 + Math.random() * 3,
+        hue: hue + Math.random() * 40,
+        alpha: 1
+      });
     }
   }
 
@@ -848,7 +859,6 @@
     toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3200);
   }
 
-  // ── Inicia conexão ──
   connect();
 </script>
 </body>
