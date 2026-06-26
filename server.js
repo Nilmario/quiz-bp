@@ -278,7 +278,7 @@ wss.on('connection', ws => {
       p.lastAnswer = data.option;
 
       const q         = questions[qIndex];
-      const timeLimit = q.timeLimit || 30; // ✅ padrão 30s
+      const timeLimit = q.timeLimit || 50; // ✅ padrão 30s
 
       if (data.option === q.correct) {
         const elapsed     = (Date.now() - questionStartTime) / 1000;
@@ -320,7 +320,7 @@ wss.on('connection', ws => {
 
 function sendQuestion() {
   const q         = questions[qIndex];
-  const timeLimit = q.timeLimit || 30; // ✅ padrão 30s
+  const timeLimit = q.timeLimit || 50; // ✅ padrão 30s
 
   Object.values(players).forEach(p => {
     p.answered   = false;
