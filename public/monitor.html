@@ -311,7 +311,7 @@
   let answeredCount    = 0;
   let currentOptions   = [];
   let currentCorrect   = 0;
-  let currentTimeLimit = 20;
+  let currentTimeLimit = 50;
   let totalQuestions   = 1;
   let previousOrder    = []; // nomes na ordem anterior para diff
 
@@ -487,7 +487,7 @@
     answeredCount    = 0;
     currentOptions   = d.options   || [];
     currentCorrect   = d.correct   ?? 0;
-    currentTimeLimit = d.timeLimit || 20;
+    currentTimeLimit = d.timeLimit || 50;
     totalQuestions   = d.total     || 1;
 
     document.getElementById('q-num').textContent      = `${d.index + 1}/${d.total}`;
