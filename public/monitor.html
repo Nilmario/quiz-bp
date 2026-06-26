@@ -404,28 +404,43 @@
 
   // ── Reset ──
   function fullReset() {
-    show('s-lobby');
-    document.getElementById('code-display').textContent = '——';
-    document.getElementById('btn-start').disabled = true;
-    renderPlayers([]);
-    stopConfetti(); stopFireworks();
+  show('s-lobby');
+  document.getElementById('code-display').textContent = '——';
+  document.getElementById('btn-start').disabled = true;
+  renderPlayers([]);
+  stopConfetti(); stopFireworks();
+  Object.keys(playerStats).forEach(k    => delete playerStats[k]);
+  Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
+  previousOrder  = [];
+  totalQuestions = 1;
+}
+
+  // ── Ações ──
+ async function generateCode() {
+  try {
+    const res  = await fetch('/api/new-code', { method: 'POST' });
+    const data = await res.json();
+
+    // Reseta estado sem apagar o código
     Object.keys(playerStats).forEach(k    => delete playerStats[k]);
     Object.keys(playerEmojiMap).forEach(k => delete playerEmojiMap[k]);
     previousOrder  = [];
     totalQuestions = 1;
-  }
+    stopConfetti();
+    stopFireworks();
+    renderPlayers([]);
+    document.getElementById('btn-start').disabled = true;
 
-  // ── Ações ──
-  async function generateCode() {
-    try {
-      const res  = await fetch('/api/new-code', { method:'POST' });
-      const data = await res.json();
-      showCode(data.gameCode);
-      fullReset();
-      show('s-lobby');
-      toast(`✅ Código gerado: ${data.gameCode}`);
-    } catch(e) { toast('Erro ao gerar código'); }
+    // Exibe o código DEPOIS de limpar tudo
+    showCode(data.gameCode);
+    show('s-lobby');
+    toast(`✅ Código gerado: ${data.gameCode}`);
+
+  } catch(e) {
+    toast('Erro ao gerar código');
   }
+}
+
 
   function startGame()   { playCountdown(() => send({ type:'start_game' })); }
   function nextQ()       { send({ type:'next_question' }); }
