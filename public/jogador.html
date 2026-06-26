@@ -1,3 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Jogador — Quiz B+P</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Segoe UI',sans-serif;background:#1a1a2e;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .screen{width:100%;max-width:480px;display:none;text-align:center}
+    .screen.active{display:block}
+
+    h1{font-size:2.2rem;color:#e94560;margin-bottom:6px}
+    .sub{color:#aaa;font-size:.95rem;margin-bottom:24px}
+
+    .card{background:#16213e;border-radius:18px;padding:28px 24px;border:2px solid #0f3460;margin-bottom:16px}
+    input{width:100%;padding:14px 18px;border-radius:12px;border:2px solid #0f3460;background:#1a1a2e;color:#fff;font-size:1rem;margin-bottom:12px;outline:none;transition:border .2s;text-align:center;letter-spacing:2px}
+    input:focus{border-color:#e94560}
+    input.name-input{letter-spacing:0;text-align:left}
+    .btn{width:100%;padding:15px;border-radius:50px;border:none;font-size:1rem;font-weight:700;cursor:pointer;transition:transform .2s,opacity .2s;margin-bottom:8px}
+    .btn:hover{transform:translateY(-2px)}
+    .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+    .btn.red{background:linear-gradient(135deg,#e94560,#c0392b);color:#fff}
+    .btn.green{background:linear-gradient(135deg,#27ae60,#1e8449);color:#fff}
+
+    /* Aguardando */
+    #s-wait .avatar{font-size:4rem;margin-bottom:12px}
+    #s-wait h2{color:#2ecc71;font-size:1.5rem;margin-bottom:8px}
+    .dots span{display:inline-block;width:10px;height:10px;border-radius:50%;background:#f5a623;margin:0 4px;animation:bounce .8s infinite alternate}
+    .dots span:nth-child(2){animation-delay:.2s}
+    .dots span:nth-child(3){animation-delay:.4s}
+    @keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-10px)}}
+
+    /* Pergunta */
+    #q-progress{background:#0f3460;border-radius:50px;height:8px;margin-bottom:16px;overflow:hidden}
+    #q-progress-bar{height:100%;background:linear-gradient(90deg,#e94560,#f5a623);border-radius:50px;transition:width .4s}
+    #q-counter{color:#aaa;font-size:.85rem;margin-bottom:10px}
+    #q-timer-player{font-size:2.8rem;font-weight:900;color:#f5a623;margin-bottom:16px;transition:all .3s}
+    #q-timer-player.urgent{color:#e94560;animation:pulse .5s infinite alternate}
+    @keyframes pulse{from{transform:scale(1)}to{transform:scale(1.08)}}
+    #q-text-player{background:#16213e;border-radius:14px;padding:22px;font-size:1.15rem;font-weight:600;line-height:1.5;margin-bottom:18px;border:2px solid #0f3460;min-height:90px;display:flex;align-items:center;justify-content:center}
+    .opt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .opt-btn{border:none;border-radius:14px;padding:20px 10px;font-size:1rem;font-weight:700;cursor:pointer;transition:all .3s;color:#fff;display:flex;flex-direction:column;align-items:center;gap:6px}
+    .opt-btn:nth-child(1){background:#e94560}
+    .opt-btn:nth-child(2){background:#1a6fbf}
+    .opt-btn:nth-child(3){background:#f5a623;color:#1a1a2e}
+    .opt-btn:nth-child(4){background:#27ae60}
+    .opt-btn:disabled{opacity:.35;cursor:not-allowed}
+    .opt-btn.selected{box-shadow:0 0 0 4px #fff;transform:scale(1.04)}
+    .opt-btn.correct{box-shadow:0 0 24px #2ecc71;border:3px solid #2ecc71}
+    .opt-btn.wrong{opacity:.22}
+    .opt-icon-big{font-size:1.6rem}
+
+    /* Resultado da rodada */
+    #s-result .result-icon{font-size:5rem;margin-bottom:10px}
+    #s-result h2{font-size:1.8rem;margin-bottom:8px}
+    #s-result .pts{font-size:1.1rem;color:#f5a623;font-weight:700}
+
+    /* Game Over */
+    #s-gameover h2{font-size:2rem;color:#f5a623;margin-bottom:16px}
+    .rank-item{display:flex;align-items:center;gap:12px;background:#16213e;border-radius:12px;padding:12px 16px;margin-bottom:8px}
+    .rank-item .pos{font-size:1.4rem;width:36px}
+    .rank-item .rname{flex:1;font-size:1rem;font-weight:600}
+    .rank-item .rpts{color:#2ecc71;font-weight:700}
+    .rank-item.me{border:2px solid #f5a623}
+
+    #toast-p{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#e94560;color:#fff;padding:10px 24px;border-radius:30px;font-weight:600;display:none;z-index:999;font-size:.9rem}
+  </style>
+</head>
+<body>
+
+<!-- ══ INSERIR CÓDIGO ══ -->
+<div class="screen active" id="s-code">
+  <h1>🎯 Quiz B+P</h1>
+  <p class="sub">Digite o código da partida para entrar</p>
+  <div class="card">
+    <h2 style="color:#f5a623;margin-bottom:16px">🔑 Código da Partida</h2>
+    <input id="inp-code" maxlength="6" placeholder="EX: A3F9C2" oninput="this.value=this.value.toUpperCase()"/>
+    <button class="btn red" onclick="validateCode()">Verificar Código</button>
+  </div>
+</div>
+
+<!-- ══ INSERIR NOME ══ -->
+<div class="screen" id="s-join">
+  <h1>🎯 Quiz B+P</h1>
+  <p class="sub">Código válido! Agora escolha seu nome</p>
+  <div class="card">
+    <input class="name-input" id="inp-name" maxlength="24" placeholder="Seu nome..." />
+    <button class="btn red" onclick="joinGame()">🚀 Entrar na Partida</button>
+  </div>
+</div>
+
+<!-- ══ AGUARDANDO ══ -->
+<div class="screen" id="s-wait">
+  <div class="avatar">🎮</div>
+  <h2 id="wait-name">Pronto!</h2>
+  <p style="color:#aaa;margin-bottom:20px">Aguardando o quiz começar...</p>
+  <div class="dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- ══ PERGUNTA ══ -->
+<div class="screen" id="s-question-p">
+  <div id="q-progress"><div id="q-progress-bar" style="width:0%"></div></div>
+  <div id="q-counter">Pergunta 1/10</div>
+  <div id="q-timer-player">20</div>
+  <div id="q-text-player">...</div>
+  <div class="opt-grid" id="opt-grid"></div>
+</div>
+
+<!-- ══ RESULTADO RODADA ══ -->
+<div class="screen" id="s-result">
+  <div class="result-icon" id="result-icon">🎉</div>
+  <h2 id="result-title">Correto!</h2>
+  <p id="result-sub" style="color:#aaa;margin-bottom:10px"></p>
+  <div class="pts" id="result-pts"></div>
+  <p style="color:#555;margin-top:20px;font-size:.85rem">Aguardando próxima pergunta...</p>
+</div>
+
+<!-- ══ GAME OVER ══ -->
+<div class="screen" id="s-gameover">
+  <h2>🏆 Resultado Final</h2>
+  <div id="gameover-list"></div>
+</div>
+
+<div id="toast-p"></div>
+
 <script>
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const wsUrl = `${proto}://${location.host}`;
@@ -190,3 +316,6 @@
 
   connect();
 </script>
+
+</body>
+</html>
